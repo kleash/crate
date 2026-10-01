@@ -8,6 +8,11 @@ extension ArchiveListing {
     var needsPassword: Bool { hasEncryptedEntries && writableFormat == .zip }
 }
 
+/// The archive work running now. Quitting cancels it and waits for it to stop, so that no temporary or
+/// half-written file is left behind (AppDelegate.applicationShouldTerminate).
+@MainActor var runningOperations: [ProgressModel] = []
+let operationsRunning = DispatchGroup()
+
 /// Runs `work` off the main thread with `password`, showing a progress sheet with Cancel on `window` when `title`
 /// is set. Asks for a password first when `needsPassword` and none is known, and again (then runs `work` again) when
 /// it throws `passphraseRequired` or `wrongPassphrase`. On success calls `done` with the password that worked.
@@ -20,12 +25,14 @@ func runWithPassword(_ title: String?, on window: NSWindow?, name: String, needs
         return askPasswordThenRun(title, on: window, name: name, wrong: false, work: work, done: done)
     }
     let progress = ProgressModel()
+    runningOperations.append(progress)
     let sheet: NSWindow?
     if let title, let window {
         sheet = presentSheet(ProgressSheet(title: title, model: progress), on: window)
     } else {
         sheet = nil
     }
+    operationsRunning.enter()
     DispatchQueue.global(qos: .userInitiated).async {
         let failure: Error?
         do {
@@ -34,7 +41,9 @@ func runWithPassword(_ title: String?, on window: NSWindow?, name: String, needs
         } catch {
             failure = error
         }
+        operationsRunning.leave()
         DispatchQueue.main.async {
+            runningOperations.removeAll { $0 === progress }
             if let sheet { window?.endSheet(sheet) }
             guard let failure else { return done(password) }
             switch failure as? ArchiveError {

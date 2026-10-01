@@ -32,6 +32,8 @@
 				<string>public.cpio-archive</string>
 				<string>com.apple.xar-archive</string>
 				<string>com.apple.installer-package-archive</string>
+				<string>public.z-archive</string>
+				<string>com.apple.bom-compressed-cpio</string>
 			</array>
 		</dict>
 		<!-- Any file or folder, rank None: accepted when dropped on the Dock icon (to compress it)
@@ -119,6 +121,8 @@
 				<string>public.cpio-archive</string>
 				<string>com.apple.xar-archive</string>
 				<string>com.apple.installer-package-archive</string>
+				<string>public.z-archive</string>
+				<string>com.apple.bom-compressed-cpio</string>
 			</array>
 		</dict>
 	</array>

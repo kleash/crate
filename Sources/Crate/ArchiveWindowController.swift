@@ -21,6 +21,9 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     private var search = ""
     /// The table's entries in display order.
     private var rows: [ArchiveEntry] = []
+    /// Every entry in display order with its lowercased name, made on the first search after a listing or sort
+    /// change, so that typing only filters it (sorting 200,000 names takes most of a second).
+    private var searchable: [(entry: ArchiveEntry, name: String)]?
 
     /// Files extracted for Quick Look and drags go here; removed when the window closes.
     private let tempFolder = FileManager.default.temporaryDirectory.appendingPathComponent("Crate-" + UUID().uuidString)
@@ -28,6 +31,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     private var previewItems: [URL] = []
     private var controlsPreview = false
     private let dragQueue = OperationQueue()
+    /// Set when the window closes: work finishing afterwards must not show anything.
+    private var closed = false
 
     private let table = EntryTableView()
     private let pathControl = NSPathControl()
@@ -86,6 +91,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
         case .success(let listing):
             log.log("listed \(name, privacy: .public): \(listing.entries.count, privacy: .public) entries, \(listing.formatName, privacy: .public), editable: \(listing.isEditable, privacy: .public), encrypted: \(listing.hasEncryptedEntries, privacy: .public)")
             self.listing = listing
+            searchable = nil
             previewFiles = [:]
             if !folder.isEmpty && !listing.entries.contains(where: { $0.isDirectory && $0.path == folder }) { folder = "" }
             reload()
@@ -101,10 +107,13 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     /// Refills the table, keeping the selected entries (or selecting `paths`) where they are still listed.
     private func reload(selecting paths: Set<String>? = nil) {
         let keep = paths ?? Set(selection.map(\.path))
-        let entries = listing.map { listing in
-            search.isEmpty ? listing.children(of: folder) : listing.entries.filter { $0.name.localizedCaseInsensitiveContains(search) }
-        } ?? []
-        rows = sorted(entries)
+        if let listing, !search.isEmpty {
+            if searchable == nil { searchable = sorted(listing.entries).map { ($0, $0.name.lowercased()) } }
+            let term = search.lowercased()
+            rows = searchable!.filter { $0.name.contains(term) }.map(\.entry)
+        } else {
+            rows = sorted(listing?.children(of: folder) ?? [])
+        }
         table.reloadData()
         table.selectRowIndexes(IndexSet(rows.indices.filter { keep.contains(rows[$0].path) }), byExtendingSelection: false)
         updatePathControl()
@@ -119,23 +128,25 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
         table.scrollRowToVisible(table.selectedRow >= 0 ? table.selectedRow : 0)
     }
 
-    /// Folders first, then by the table's sort column (ties by name).
+    /// Folders first, then by the table's sort column (ties by name). Names and kinds are worked out once per entry,
+    /// not in every comparison, which makes sorting a big archive about three times faster.
     private func sorted(_ entries: [ArchiveEntry]) -> [ArchiveEntry] {
         let sort = table.sortDescriptors.first
         let key = sort?.key ?? "name"
         let ascending = sort?.ascending ?? true
-        return entries.sorted { a, b in
-            if a.isDirectory != b.isDirectory { return a.isDirectory }
+        let keyed = entries.map { (entry: $0, name: $0.name, kind: key == "kind" ? kind(of: $0) : "") }
+        return keyed.sorted { a, b in
+            if a.entry.isDirectory != b.entry.isDirectory { return a.entry.isDirectory }
             var order: ComparisonResult
             switch key {
-            case "size": order = a.size == b.size ? .orderedSame : a.size < b.size ? .orderedAscending : .orderedDescending
-            case "modified": order = (a.modified ?? .distantPast).compare(b.modified ?? .distantPast)
-            case "kind": order = kind(of: a).localizedStandardCompare(kind(of: b))
+            case "size": order = a.entry.size == b.entry.size ? .orderedSame : a.entry.size < b.entry.size ? .orderedAscending : .orderedDescending
+            case "modified": order = (a.entry.modified ?? .distantPast).compare(b.entry.modified ?? .distantPast)
+            case "kind": order = a.kind.localizedStandardCompare(b.kind)
             default: order = .orderedSame
             }
             if order == .orderedSame { order = a.name.localizedStandardCompare(b.name) }
             return order == (ascending ? .orderedAscending : .orderedDescending)
-        }
+        }.map(\.entry)
     }
 
     private func updatePathControl() {
@@ -330,7 +341,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     }
 
     private func canPerform(_ action: Selector?) -> Bool {
-        guard let listing else { return false }
+        // Nothing starts while a sheet (progress, alert, password) is up: menu shortcuts still reach this window.
+        guard let listing, window?.attachedSheet == nil else { return false }
         switch action {
         case #selector(goUp(_:)): return !folder.isEmpty
         case #selector(addFiles(_:)): return listing.isEditable
@@ -522,6 +534,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     }
 
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+        searchable = nil
         reload()
     }
 
@@ -530,7 +543,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
-        guard controlsPreview, QLPreviewPanel.shared().isVisible else { return }
+        // Following the selection never asks for a password (Space does), or a cancelled prompt would return at every click.
+        guard controlsPreview, QLPreviewPanel.shared().isVisible, listing?.needsPassword != true || password != nil else { return }
         preparePreview { QLPreviewPanel.shared().reloadData() }
     }
 
@@ -576,7 +590,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
 
     /// A drag-out failed: ask for the password (the user can drag again), or show the error.
     private func dragFailed(_ error: Error) {
-        guard let window, window.attachedSheet == nil else { return }
+        guard !closed, let window, window.attachedSheet == nil else { return }
         switch error as? ArchiveError {
         case .passphraseRequired?, .wrongPassphrase?:
             askPassword(for: url.lastPathComponent, wrong: password != nil, on: window) { entered in
@@ -623,17 +637,22 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     }
 
     /// Extracts the selected files that aren't extracted yet into the temporary folder, then sets the preview items
-    /// for the selection at that moment and calls `done`.
+    /// for the selection at that moment and calls `done`. Each extraction reads the whole archive, so the files
+    /// of one folder (all of them, unless searching) are extracted together; they land side by side.
     private func preparePreview(then done: @escaping () -> Void) {
         guard let listing else { return }
-        let jobs = selection.filter { !$0.isDirectory && previewFiles[$0.path] == nil }
-            .map { ($0, tempFolder.appendingPathComponent(UUID().uuidString)) }
+        let jobs = Dictionary(grouping: selection.filter { !$0.isDirectory && previewFiles[$0.path] == nil }, by: \.parent)
+            .values.map { ($0, tempFolder.appendingPathComponent(UUID().uuidString)) }
         run(nil, { password, _ in
-            for (entry, destination) in jobs {
-                try Archive.extract(listing, paths: [entry.path], to: destination, passphrase: password)
+            for (entries, destination) in jobs {
+                try Archive.extract(listing, paths: entries.map(\.path), to: destination, passphrase: password)
             }
         }) {
-            for (entry, destination) in jobs { self.previewFiles[entry.path] = destination.appendingPathComponent(entry.name) }
+            // Closed meanwhile: the extraction re-created the temporary folder, and there is nothing to preview.
+            guard !self.closed else { return self.removeTemporaryFiles() }
+            for (entries, destination) in jobs {
+                for entry in entries { self.previewFiles[entry.path] = destination.appendingPathComponent(entry.name) }
+            }
             self.previewItems = self.selection.compactMap { $0.isDirectory ? nil : self.previewFiles[$0.path] }
             done()
         }
@@ -671,6 +690,7 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
     func windowWillClose(_ notification: Notification) {
         // The Quick Look panel's window notifications come here too (we are its delegate while previewing).
         guard notification.object as? NSWindow === window else { return }
+        closed = true
         if controlsPreview { QLPreviewPanel.shared().orderOut(nil) }
         removeTemporaryFiles()
         onClose()

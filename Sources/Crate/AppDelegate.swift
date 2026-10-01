@@ -47,6 +47,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
 
+    /// Quitting while archive work runs: cancel it and let it clean up after itself (temporary and half-written
+    /// files) before the process ends. Cancelled work stops at its next progress report, normally at once.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !runningOperations.isEmpty else { return .terminateNow }
+        log.log("quit: cancelling \(runningOperations.count, privacy: .public) operation(s)")
+        runningOperations.forEach { $0.cancel() }
+        _ = operationsRunning.wait(timeout: .now() + 10)
+        return .terminateNow
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         archiveWindows.values.forEach { $0.removeTemporaryFiles() }
     }
@@ -93,7 +103,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showOpenPanel(_ sender: Any?) {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = [.archive]
+        // The types Info.plist declares as archives (public.archive would include disk images, which can't be read).
+        let types = (Bundle.main.infoDictionary?["CFBundleDocumentTypes"] as? [[String: Any]])?
+            .first { $0["CFBundleTypeName"] as? String == "Archive" }?["LSItemContentTypes"] as? [String] ?? []
+        panel.allowedContentTypes = types.compactMap { UTType($0) }
         guard panel.runModal() == .OK else { return }
         panel.urls.forEach(openArchive)
     }
