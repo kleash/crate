@@ -82,7 +82,6 @@ final class PreviewViewController: NSViewController, QLPreviewingController, NSO
 
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
         let start = Date()
-        log.log("prepare \(url.path, privacy: .public)")
         icon.image = NSWorkspace.shared.icon(forFile: url.path)
         nameLabel.stringValue = url.lastPathComponent
         // Listing reads every header (a compressed tar is decompressed in full), so it runs off the main
@@ -93,20 +92,9 @@ final class PreviewViewController: NSViewController, QLPreviewingController, NSO
                 self.show(result)
                 handler(nil)
                 let ms = Int(Date().timeIntervalSince(start) * 1000)
-                self.log.log("""
-                    handler after \(ms) ms: entries \(self.listing?.entries.count ?? -1), tree rows \(self.outline.numberOfRows), \
-                    summary “\(self.summaryLabel.stringValue, privacy: .public)”, footer “\(self.footerLabel.isHidden ? "" : self.footerLabel.stringValue, privacy: .public)”
-                    """)
+                self.log.log("previewed \(url.lastPathComponent, privacy: .public) in \(ms) ms: \(self.summaryLabel.stringValue, privacy: .public)")
             }
         }
-    }
-
-    override func viewDidAppear() {
-        super.viewDidAppear()
-        log.log("""
-            viewDidAppear view \(NSStringFromRect(self.view.frame), privacy: .public), tree \(NSStringFromRect(self.tree.frame), privacy: .public), \
-            outline rows \(self.outline.numberOfRows), appearance \(self.view.effectiveAppearance.name.rawValue, privacy: .public)
-            """)
     }
 
     /// Fills the summary line and the tree from the listing, or shows why the archive couldn't be read.
