@@ -163,8 +163,9 @@
 		</dict>
 	</array>
 	<!-- The first volume of a split archive (name.zip.001, as 7-Zip, Keka and Crate make them): Open With, Open with
-	     Crate and Extract Here with Crate. Not for Quick Look: its sandbox can read only the selected volume. -->
-	<key>UTImportedTypeDeclarations</key>
+	     Crate and Extract Here with Crate. Not for Quick Look: its sandbox can read only the selected volume.
+	     Exported, since Crate defines this type (imported declarations are for types other apps own). -->
+	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
