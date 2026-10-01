@@ -19,6 +19,7 @@ public struct ArchiveEntry: Hashable, Sendable {
 
 /// What `Archive.list(_:)` found in an archive.
 public struct ArchiveListing: Sendable {
+    /// The archive file, with symlinks resolved.
     public let url: URL
     /// Every entry in archive order, plus the folders that are only implied by the paths below them.
     /// Each path appears once; when the archive repeats one, the last copy wins (as it would on extraction).

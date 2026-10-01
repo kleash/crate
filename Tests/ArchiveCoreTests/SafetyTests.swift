@@ -59,6 +59,18 @@ struct SafetyTests {
         #expect(read(dest.appendingPathComponent("s.txt")) == "pwned\n")
     }
 
+    @Test func replacingNeverRemovesThroughASymlink() throws {
+        // A file entry below a link to an outside folder, where that folder has a subfolder of the same name:
+        // replacing a folder with a file must not remove outside/victim.
+        try write("keep\n", to: outside.appendingPathComponent("victim/keep.txt"))
+        let dest = scratch["dest"]
+        try extract([.symlink("link", outside.path), .file("link/victim", "pwned\n")], to: dest)
+        try FileManager.default.createSymbolicLink(at: dest.appendingPathComponent("pre"), withDestinationURL: outside)
+        try extract([.file("pre/victim", "pwned\n")], to: dest)
+        #expect(snapshot(outside) == ["secret.txt": "file:secret\n", "victim": "dir", "victim/keep.txt": "file:keep\n"])
+        #expect(snapshot(dest) == ["link": "dir", "link/victim": "file:pwned\n", "pre": "dir", "pre/victim": "file:pwned\n"])
+    }
+
     @Test func hardLinksStayInside() throws {
         let dest = scratch["dest"]
         #expect(throws: ArchiveError.unsafePath("../outside/secret.txt")) {

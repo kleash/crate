@@ -235,6 +235,55 @@ struct CreateExtractTests {
         #expect(read(a) == "alpha\n")
     }
 
+    @Test func foldersStayOpenable() throws {
+        // Python's tarfile, among others, stores folders as 0644; restored as is, nothing inside could be opened.
+        try craftTar(scratch["modes.tar"], [.directory("d", perm: 0o644), .file("d/f.txt", "x\n"), .directory("ro", perm: 0o555)])
+        try Archive.extract(try Archive.list(scratch["modes.tar"]), to: scratch["out"])
+        #expect(snapshot(scratch["out"]) == ["d": "dir", "d/f.txt": "file:x\n", "ro": "dir"])
+        let perm = { (path: String) in try FileManager.default.attributesOfItem(atPath: self.scratch[path].path)[.posixPermissions] as? Int }
+        #expect(try perm("out/d") == 0o744 && perm("out/ro") == 0o755 && perm("out/d/f.txt") == 0o644)
+    }
+
+    @Test(arguments: WritableFormat.allCases)
+    func specialFilesAreLeftOut(_ format: WritableFormat) throws {
+        // Sockets, named pipes and devices can't go into a ZIP (or a socket into a TAR), so they are skipped
+        // instead of failing the whole archive.
+        let tree = try makeTree(in: scratch["src"])
+        #expect(mkfifo(tree.appendingPathComponent("sub/pipe").path, 0o644) == 0)
+        let archive = scratch["s.\(format.fileExtension)"]
+        try Archive.create([tree], at: archive, format: format)
+        let paths = Set(try Archive.list(archive).entries.map(\.path))
+        #expect(paths.contains("tree/sub/b.txt") && !paths.contains("tree/sub/pipe"))
+    }
+
+    @Test func replacingPutsAFileWhereAFolderWas() throws {
+        try craftTar(scratch["x.tar"], [.file("x", "file\n"), .file("y", "y\n")])
+        let listing = try Archive.list(scratch["x.tar"])
+        let dest = scratch["dest"]
+        try write("inner\n", to: dest.appendingPathComponent("x/inner.txt"))
+        #expect(Archive.conflicts(listing, in: dest) == ["x"])
+        try Archive.extract(listing, to: dest, overwrite: .skip)
+        #expect(snapshot(dest) == ["x": "dir", "x/inner.txt": "file:inner\n", "y": "file:y\n"])
+        // Replace, as in Finder, swaps the folder for the file.
+        try Archive.extract(listing, to: dest, overwrite: .replace)
+        #expect(snapshot(dest) == ["x": "file:file\n", "y": "file:y\n"])
+    }
+
+    @Test func itemsWithTheSameNameAreRefused() throws {
+        // Both would be stored as "report.txt", and extracting would keep only one of them.
+        try write("A\n", to: scratch["a/report.txt"])
+        try write("B\n", to: scratch["b/report.txt"])
+        let twins = [scratch["a/report.txt"], scratch["b/report.txt"]]
+        #expect(throws: ArchiveError.failed("Two of the items are named “report.txt”.")) {
+            try Archive.create(twins, at: self.scratch["dup.zip"], format: .zip)
+        }
+        #expect(!exists(scratch["dup.zip"]))
+        try Archive.create([scratch["a"]], at: scratch["one.zip"], format: .zip)
+        #expect(throws: ArchiveError.failed("Two of the items are named “report.txt”.")) {
+            try Archive.rewrite(try Archive.list(self.scratch["one.zip"]), adding: twins)
+        }
+    }
+
     @Test func singleCompressedFiles() throws {
         try write("just one file\n", to: scratch["notes.txt"])
         // gzip stores "notes.txt" in its header; the entry is named after the archive file instead.
@@ -245,6 +294,8 @@ struct CreateExtractTests {
             let listing = try Archive.list(scratch[file])
             let name = (file as NSString).deletingPathExtension
             #expect(listing.entries.map(\.path) == [name])
+            // gzip records the uncompressed size in its trailer; bzip2 doesn't record it at all.
+            #expect(listing.entries[0].size == (format == "GZIP" ? 14 : 0))
             #expect(listing.formatName == format && !listing.isEditable)
             let here = scratch["out-\(format)"]
             let (destination, item) = Archive.smartExtractDestination(listing, in: here)

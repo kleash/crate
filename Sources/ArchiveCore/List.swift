@@ -10,6 +10,8 @@ public enum Archive {
     /// Needs no passphrase: ZIP names are never encrypted, and 7z/RAR archives with encrypted names
     /// throw `unsupportedEncryption` because libarchive can't decrypt them at all.
     public static func list(_ url: URL) throws -> ArchiveListing {
+        // An archive opened through a symlink: size, extraction and edits all concern the file it points to.
+        let url = url.resolvingSymlinksInPath()
         let r = try openReader(url, passphrase: nil)
         defer { archive_read_free(r) }
         var entries: [ArchiveEntry] = []
@@ -20,11 +22,14 @@ public enum Archive {
             let modified = archive_entry_mtime_is_set(e) != 0
                 ? Date(timeIntervalSince1970: Double(archive_entry_mtime(e)) + Double(archive_entry_mtime_nsec(e)) / 1e9)
                 : nil
+            var size = type == AE_IFREG && archive_entry_size_is_set(e) != 0 ? archive_entry_size(e) : 0
+            // A single compressed file has no size in its header; gzip (unlike bzip2 and xz) records it at the end.
+            if family(r) == ARCHIVE_FORMAT_RAW && archive_filter_code(r, 0) == ARCHIVE_FILTER_GZIP { size = gzipSize(url) }
             entries.append(ArchiveEntry(
                 path: path(of: e, in: r, url: url),
                 isDirectory: type == AE_IFDIR,
                 isSymlink: type == AE_IFLNK,
-                size: type == AE_IFREG && archive_entry_size_is_set(e) != 0 ? archive_entry_size(e) : 0,
+                size: size,
                 modified: modified,
                 isEncrypted: archive_entry_is_encrypted(e) != 0))
         }
@@ -112,6 +117,23 @@ public enum Archive {
     static func fileType(_ path: String) -> mode_t? {
         var st = stat()
         return lstat(path, &st) == 0 ? st.st_mode & S_IFMT : nil
+    }
+
+    /// `path` with every symlink in it resolved; nil (and errno set) when it doesn't exist.
+    static func realPath(_ path: String) -> String? {
+        guard let resolved = realpath(path, nil) else { return nil }
+        defer { free(resolved) }
+        return String(cString: resolved)
+    }
+
+    /// The uncompressed size recorded in a gzip file's trailer (modulo 4 GiB), or 0 if it can't be read.
+    static func gzipSize(_ url: URL) -> Int64 {
+        let fd = open(url.path, O_RDONLY | O_CLOEXEC)
+        guard fd >= 0 else { return 0 }
+        defer { close(fd) }
+        var size: UInt32 = 0
+        guard lseek(fd, -4, SEEK_END) >= 0, read(fd, &size, 4) == 4 else { return 0 }
+        return Int64(UInt32(littleEndian: size))
     }
 }
 

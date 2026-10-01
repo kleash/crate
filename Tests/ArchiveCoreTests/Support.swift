@@ -93,7 +93,7 @@ func run(_ tool: String, _ arguments: [String], in directory: URL? = nil) throws
 /// An entry for `craftTar`, with paths and link targets written exactly as given.
 enum Crafted {
     case file(String, String)
-    case directory(String)
+    case directory(String, perm: mode_t = 0o755)
     case symlink(String, String)
     /// Path, link target, and data carried by the link entry (pax allows that).
     case hardlink(String, String, String)
@@ -116,10 +116,10 @@ func craftTar(_ url: URL, _ entries: [Crafted]) throws {
             archive_entry_set_filetype(e, UInt32(AE_IFREG))
             archive_entry_set_perm(e, 0o644)
             data = text
-        case .directory(let path):
+        case .directory(let path, let perm):
             archive_entry_set_pathname_utf8(e, path)
             archive_entry_set_filetype(e, UInt32(AE_IFDIR))
-            archive_entry_set_perm(e, 0o755)
+            archive_entry_set_perm(e, perm)
         case .symlink(let path, let target):
             archive_entry_set_pathname_utf8(e, path)
             archive_entry_set_filetype(e, UInt32(AE_IFLNK))

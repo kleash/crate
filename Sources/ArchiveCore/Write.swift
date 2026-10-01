@@ -6,12 +6,14 @@ extension Archive {
     /// everything below it); symlinks are stored as links; paths are relative; no extended attributes, ACLs or
     /// file flags are stored.
     /// - passphrase: ZIP only, encrypts with AES-256; other formats throw `unsupportedEncryption`.
-    /// - excludeJunk: skips .DS_Store, "._*" AppleDouble files and __MACOSX folders.
+    /// - excludeJunk: skips .DS_Store, "._*" AppleDouble files and __MACOSX folders. Sockets, named pipes and
+    ///   devices are always skipped. Two items with the same name are refused: only one could be extracted.
     /// - The archive is written to a hidden temporary file next to `url` and then renamed over it, so an error or
     ///   cancellation (progress returning false) leaves nothing behind.
     public static func create(_ items: [URL], at url: URL, format: WritableFormat, level: CompressionLevel = .normal,
                               passphrase: String? = nil, excludeJunk: Bool = true,
                               progress: (Double) -> Bool = { _ in true }) throws {
+        try checkNames(items)
         var meter = Meter(total: diskSize(items))
         try writeArchive(url, format: format, level: level, passphrase: passphrase, replacing: false) { w in
             for item in items {
@@ -24,7 +26,8 @@ extension Archive {
     /// Rewrites `listing`'s archive with entries removed and files added. Everything is recompressed into a
     /// temporary file next to the archive, which then replaces it (FileManager.replaceItemAt); on error or
     /// cancellation the original is untouched.
-    /// - removing: paths as in `listing.entries`; a folder takes everything below it.
+    /// - removing: paths as in `listing.entries`; a folder takes everything below it. Removing or replacing the
+    ///   target of a tar hard link that stays is refused, since the link holds no data of its own.
     /// - adding: files and folders to put into `folder` ("" = top level). An item whose path already exists
     ///   replaces it; for a folder, the old folder and everything in it. Junk files are skipped as in `create`.
     /// - passphrase: required when the archive has encrypted entries (ZIP only); everything is then re-encrypted
@@ -33,6 +36,7 @@ extension Archive {
     public static func rewrite(_ listing: ArchiveListing, removing: [String] = [], adding: [URL] = [], into folder: String = "",
                                passphrase: String? = nil, progress: (Double) -> Bool = { _ in true }) throws {
         guard let format = listing.writableFormat else { throw ArchiveError.notEditable }
+        try checkNames(adding)
         var encryption: String?
         if listing.hasEncryptedEntries {
             guard format == .zip else { throw ArchiveError.unsupportedEncryption(format.displayName) }
@@ -51,7 +55,13 @@ extension Archive {
             var entry: OpaquePointer?
             while try nextHeader(r, &entry) {
                 let e = entry!
-                if isInside(components(path(of: e, in: r, url: listing.url)), replaced) { continue }
+                let path = self.path(of: e, in: r, url: listing.url)
+                if isInside(components(path), replaced) { continue }
+                // A tar hard link has no data of its own: without its target, the file would be lost.
+                if let target = (archive_entry_hardlink_utf8(e) ?? archive_entry_hardlink(e)).map({ normalize(String(cString: $0)) }),
+                   isInside(components(target), replaced) {
+                    throw ArchiveError.failed("“\(path)” is a hard link to “\(target)”, so “\(target)” can't be removed or replaced.")
+                }
                 try meter.add(0, progress)
                 guard archive_write_header(w, e) >= ARCHIVE_WARN else { throw ArchiveError.failed(message(w)) }
                 while true {
@@ -154,7 +164,10 @@ extension Archive {
             }
             archive_read_disk_descend(disk)
             archive_entry_set_pathname_utf8(e, path)
-            let isFile = archive_entry_filetype(e) == AE_IFREG
+            // Sockets, named pipes and devices are left out: ZIP can't store them, nor TAR a socket.
+            let type = archive_entry_filetype(e)
+            guard type == AE_IFREG || type == AE_IFDIR || type == AE_IFLNK else { continue }
+            let isFile = type == AE_IFREG
             if !isFile { archive_entry_set_size(e, 0) }
             try meter.add(0, progress)
             guard archive_write_header(w, e) >= ARCHIVE_WARN else { throw ArchiveError.failed(message(w)) }
@@ -166,6 +179,14 @@ extension Archive {
                 guard archive_write_data(w, buffer, n) >= 0 else { throw ArchiveError.failed(message(w)) }
                 try meter.add(n, progress)
             }
+        }
+    }
+
+    /// Throws when two of `items` would be stored under the same name: extracting would keep only one of them.
+    static func checkNames(_ items: [URL]) throws {
+        var names = Set<String>()
+        for item in items where !names.insert(item.lastPathComponent).inserted {
+            throw ArchiveError.failed("Two of the items are named “\(item.lastPathComponent)”.")
         }
     }
 

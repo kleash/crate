@@ -67,6 +67,41 @@ struct RewriteTests {
         #expect(read(scratch["out/tree/sub/b.txt"]) == "bravo\n")
     }
 
+    @Test func removingAHardLinkTargetIsRefused() throws {
+        // In a tar, "two.txt" can be a hard link to "one.txt" with no data of its own: without one.txt it is lost.
+        let archive = scratch["links.tar"]
+        try craftTar(archive, [.file("one.txt", "same\n"), .hardlink("two.txt", "one.txt", ""), .file("three.txt", "3\n")])
+        let original = try Data(contentsOf: archive)
+        let listing = try Archive.list(archive)
+        #expect(throws: ArchiveError.failed("“two.txt” is a hard link to “one.txt”, so “one.txt” can't be removed or replaced.")) {
+            try Archive.rewrite(listing, removing: ["one.txt"])
+        }
+        try write("new\n", to: scratch["new/one.txt"])
+        #expect(throws: ArchiveError.self) { try Archive.rewrite(listing, adding: [self.scratch["new/one.txt"]]) }
+        #expect(try Data(contentsOf: archive) == original)
+
+        // Other edits keep the link working; removing the link along with its target is fine.
+        try Archive.rewrite(listing, removing: ["three.txt"])
+        try Archive.extract(try Archive.list(archive), to: scratch["out"])
+        #expect(snapshot(scratch["out"]) == ["one.txt": "file:same\n", "two.txt": "file:same\n"])
+        try Archive.rewrite(try Archive.list(archive), removing: ["one.txt", "two.txt"], adding: [scratch["new/one.txt"]])
+        #expect(try Archive.list(archive).entries.map(\.path) == ["one.txt"])
+    }
+
+    @Test func archiveOpenedThroughASymlink() throws {
+        let tree = try makeTree(in: scratch["src"])
+        let real = scratch["real/t.zip"]
+        try FileManager.default.createDirectory(at: scratch["real"], withIntermediateDirectories: true)
+        try Archive.create([tree], at: real, format: .zip)
+        try FileManager.default.createSymbolicLink(at: scratch["link.zip"], withDestinationURL: real)
+        let listing = try Archive.list(scratch["link.zip"])
+        #expect(listing.archiveSize == Int64(try Data(contentsOf: real).count))
+        // The archive the link points to is edited; the link stays a link.
+        try Archive.rewrite(listing, removing: ["tree/a.txt"])
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: scratch["link.zip"].path) == real.path)
+        #expect(try !Archive.list(real).entries.contains { $0.path == "tree/a.txt" })
+    }
+
     @Test func cancellingKeepsTheOriginal() throws {
         let tree = try makeTree(in: scratch["src"])
         try writeRandom(bytes: 3_000_000, to: scratch["big.bin"])

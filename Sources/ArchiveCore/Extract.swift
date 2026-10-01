@@ -9,7 +9,8 @@ extension Archive {
     /// - Safety: nothing is written outside `destination`. A leading "/" is dropped, a ".." component throws
     ///   `unsafePath`, hard-link targets are confined the same way, and libarchive refuses to write through a
     ///   symlink (one in the way is replaced by a real folder).
-    /// - overwrite: `.skip` leaves anything already at an entry's destination untouched.
+    /// - overwrite: `.replace` replaces whatever is in the way (as in Finder, a folder where a file goes too);
+    ///   `.skip` leaves anything already at an entry's destination untouched.
     /// - progress: fraction done (0…1); return false to cancel (throws `cancelled`). Entries extracted before an
     ///   error or cancel stay; the file being written is removed.
     public static func extract(_ listing: ArchiveListing, paths: [String]? = nil, to destination: URL,
@@ -18,11 +19,9 @@ extension Archive {
         let selection = Selection(paths)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
         // Resolve symlinks once: libarchive rejects any symlink along the (absolute) paths we give it.
-        guard let resolved = realpath(destination.path, nil) else {
+        guard let root = realPath(destination.path) else {
             throw ArchiveError.failed("Can't open “\(destination.path)”: \(String(cString: strerror(errno)))")
         }
-        let root = String(cString: resolved)
-        free(resolved)
         let prefix = root == "/" ? "" : root
         var meter = Meter(total: listing.entries.reduce(0) { selection.relativePath($1.path) == nil ? $0 : $0 + $1.size })
 
@@ -51,6 +50,8 @@ extension Archive {
                 archive_entry_set_hardlink_utf8(e, prefix + "/" + linkRelative)
             }
             archive_entry_set_pathname_utf8(e, target)
+            // A folder stored without owner rwx (Python's tarfile writes 0644) couldn't be opened or deleted.
+            if archive_entry_filetype(e) == AE_IFDIR { archive_entry_set_perm(e, archive_entry_perm(e) | 0o700) }
             // Read the first block before touching the disk: a missing or wrong passphrase (or encryption
             // libarchive can't decrypt) fails here and leaves whatever is at `target` as it was.
             var buffer: UnsafeRawPointer?
@@ -59,8 +60,14 @@ extension Archive {
             var rc = archive_read_data_block(r, &buffer, &size, &offset)
             guard rc == ARCHIVE_OK || rc == ARCHIVE_EOF else { throw dataError(r, e, passphrase: passphrase) }
             try meter.add(0, progress)
+            // Replacing, as in Finder, swaps a folder in the way of a file for the file (libarchive only removes
+            // empty folders). Not when a symlink is on the way there: that folder could be outside the destination.
+            if overwrite == .replace, archive_entry_filetype(e) != AE_IFDIR, fileType(target) == S_IFDIR,
+               realPath(target) == target {
+                try FileManager.default.removeItem(atPath: target)
+            }
             guard withUmaskLock({ archive_write_header(disk, e) }) >= ARCHIVE_WARN else {
-                throw ArchiveError.failed(message(disk))
+                throw ArchiveError.failed("\(path): \(message(disk))")
             }
             do {
                 while rc == ARCHIVE_OK {
