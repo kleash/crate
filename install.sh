@@ -5,16 +5,22 @@
 #   ./install.sh path/to/Crate.app   installs that app
 #   ./install.sh --dry-run [app]     prints the commands instead of running them
 set -euo pipefail
-cd "$(dirname "$0")"
 
+usage() { echo "usage: $0 [--dry-run] [path/to/Crate.app]" >&2; exit 2; }
 dry=false
-if [ "${1:-}" = "--dry-run" ]; then
-    dry=true
-    shift
-fi
+src=
+for arg in "$@"; do
+    case $arg in
+        --dry-run) dry=true ;;
+        -*) usage ;;
+        *) if [ -n "$src" ]; then usage; fi; src=$arg ;;
+    esac
+done
+# A relative path means relative to where the script was started, not to the script's folder.
+case $src in ""|/*) ;; *) src=$PWD/$src ;; esac
+cd "$(dirname "$0")"
 run() { if $dry; then echo "+ $*"; else "$@"; fi; }
 
-src=${1:-}
 if [ -z "$src" ]; then
     if [ -d build/Crate.app ]; then src=build/Crate.app; else src=Crate.app; fi
 fi
@@ -47,8 +53,9 @@ fi
 # A downloaded, ad-hoc signed app that is still quarantined is reported as "damaged" on macOS 15 and later.
 run xattr -dr com.apple.quarantine "$dest"
 run "$lsregister" -f -R "$dest"
-# Forget the copy we installed from, so Finder's Open With and Services use the installed one.
-if [ "$src" != "$dest" ]; then run "$lsregister" -u "$src"; fi
+# Forget the copy we installed from, so Finder's Open With and Services use the installed one. lsregister fails
+# (-10814) when that copy was never registered, which is fine.
+if [ "$src" != "$dest" ]; then run "$lsregister" -u "$src" 2>/dev/null || true; fi
 # Quick Look extension: register it and make sure it is enabled.
 run pluginkit -a "$appex"
 run pluginkit -e use -i com.sa.crate.quicklook

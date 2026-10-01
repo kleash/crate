@@ -5,7 +5,11 @@
 set -euo pipefail
 
 dry=false
-if [ "${1:-}" = "--dry-run" ]; then dry=true; fi
+case "$*" in
+    "") ;;
+    --dry-run) dry=true ;;
+    *) echo "usage: $0 [--dry-run]" >&2; exit 2 ;;
+esac
 run() { if $dry; then echo "+ $*"; else "$@"; fi; }
 
 app=$HOME/Applications/Crate.app

@@ -21,7 +21,8 @@ that ships with macOS, so it has no third-party dependencies.
 ## Requirements
 
 - macOS 13.1 or later, on Apple silicon or Intel.
-- Building needs the Command Line Tools with Swift 5.9 or later (`xcode-select --install`). Xcode is not needed.
+- Building needs the Command Line Tools with Swift 5.9 or later. Xcode is not needed. Installing the Command Line
+  Tools (`xcode-select --install`) needs an administrator password; on a Mac without them, use a prebuilt Crate.app.
 - Running the tests needs Swift 6 or later.
 
 ## Quick start (prebuilt app)
@@ -55,10 +56,11 @@ No administrator rights are needed.
 
 ## Known limitations
 
-- Encrypted 7-Zip and RAR archives can't be opened, because the libarchive in macOS can't decrypt them.
-  Encrypted ZIPs work.
+- Encrypted 7-Zip and RAR archives can be browsed (unless their file names are encrypted too) but not extracted,
+  because the libarchive in macOS can't decrypt them. Encrypted ZIPs work.
 - `.tar.zst`, `.lz4` and similar archives need command-line tools that macOS doesn't include, so Crate can't open them.
 - Adding or deleting items rewrites the whole archive at Normal compression. An encrypted ZIP is re-encrypted
   with AES-256.
 - There is no per-file packed size (libarchive doesn't report one). The status bar shows the archive's size.
 - RAR, ISO, CPIO, XAR/PKG and single-file .gz/.bz2/.xz archives are read-only.
+- A single .bz2 or .xz file doesn't record its uncompressed size, so Crate shows it as Zero KB.
