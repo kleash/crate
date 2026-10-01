@@ -81,12 +81,6 @@ final class PreviewViewController: NSViewController, QLPreviewingController, NSO
     }
 
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
-        // A split archive's first volume (name.zip.001) counts as an archive, but the sandbox lets this extension read
-        // only that file, not the other volumes: leave it to Quick Look's standard preview.
-        if url.pathExtension == "001" {
-            log.log("split archive \(url.lastPathComponent, privacy: .public): standard preview")
-            return handler(CocoaError(.featureUnsupported))
-        }
         let start = Date()
         icon.image = NSWorkspace.shared.icon(forFile: url.path)
         nameLabel.stringValue = url.lastPathComponent

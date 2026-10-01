@@ -25,6 +25,8 @@
 		<dict>
 			<key>QLIsDataBasedPreview</key>
 			<false/>
+			<!-- Not com.sa.crate.split-archive-part (name.zip.001): the sandbox lets the extension read only the
+			     selected volume of a split archive. -->
 			<key>QLSupportedContentTypes</key>
 			<array>
 				<string>public.zip-archive</string>
