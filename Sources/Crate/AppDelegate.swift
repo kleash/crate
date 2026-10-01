@@ -169,6 +169,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentViewController = controller
         window.setContentSize(controller.view.fittingSize)
         window.center()
+        // Two at once (Compress with Crate twice in a row) would cover each other exactly: step down from the newest.
+        if let last = newArchiveWindows.last {
+            window.setFrameTopLeftPoint(NSPoint(x: last.frame.minX + 24, y: last.frame.maxY - 24))
+        }
         newArchiveWindows.append(window)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
