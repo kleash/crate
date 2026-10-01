@@ -151,6 +151,8 @@ int archive_write_set_options(struct archive *_a,
 			    const char *opts);
 int archive_write_set_passphrase(struct archive *_a, const char *p);
 int archive_write_open_filename(struct archive *, const char *_file);
+/* The caller owns the fd: libarchive never closes it. */
+int archive_write_open_fd(struct archive *, int _fd);
 int archive_write_header(struct archive *,
 		     struct archive_entry *);
 la_ssize_t	archive_write_data(struct archive *,
