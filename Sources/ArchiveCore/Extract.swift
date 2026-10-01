@@ -117,13 +117,19 @@ extension Archive {
         return (item, item)
     }
 
-    /// `folder/name.ext`, or the first of "name 2.ext", "name 3.ext", … that doesn't exist yet, nor as the first
-    /// volume of a split archive ("name.ext.001"). `ext` has no leading dot ("tar.gz"); pass "" for a folder.
+    /// `folder/name.ext`, or the first of "name 2.ext", "name 3.ext", … that doesn't exist yet, nor as a volume of a
+    /// split archive ("name.ext.001", or a leftover "name.ext.003" that a new set would take in as its own).
+    /// `ext` has no leading dot ("tar.gz"); pass "" for a folder.
     public static func uniqueURL(in folder: URL, name: String, extension ext: String = "") -> URL {
+        // The names that volumes in `folder` belong to ("Archive.zip.003" → "archive.zip"), lowercased because Mac
+        // file systems normally ignore case: "archive.zip.003" would be read as a volume of "Archive.zip" too.
+        let split = Set(((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
+            .filter { volumeNumber(folder.appendingPathComponent($0, isDirectory: false)) != nil }
+            .map { ($0 as NSString).deletingPathExtension.lowercased() })
         var n = 1
         while true {
             let candidate = folder.appendingPathComponent((n == 1 ? name : "\(name) \(n)") + (ext.isEmpty ? "" : "." + ext))
-            if fileType(candidate.path) == nil && fileType(volume(1, of: candidate).path) == nil { return candidate }
+            if fileType(candidate.path) == nil && !split.contains(candidate.lastPathComponent.lowercased()) { return candidate }
             n += 1
         }
     }

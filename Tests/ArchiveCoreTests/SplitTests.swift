@@ -116,6 +116,12 @@ struct SplitTests {
         #expect(throws: Archive.incompleteSplitArchive) { try Archive.list(short[0]) }
         // Caught by the sizes alone, before reading: a TAR could otherwise lose bytes without an error.
         #expect(throws: Archive.incompleteSplitArchive) { try Archive.volumes(of: short[0]) }
+        // All there, but one can't be read: that one, not "incomplete" (nor "Unrecognized archive format" for ZIP).
+        let locked = try copy("locked")
+        chmod(locked[1].path, 0)
+        for opened in [locked[0], locked[2]] {
+            #expect(throws: ArchiveError.failed("Can't read “locked.\(ext).002”: Permission denied")) { try Archive.list(opened) }
+        }
         // Complete again: fine.
         #expect(try Archive.list(volumes[2]).volumes == volumes)
     }
@@ -191,5 +197,19 @@ struct SplitTests {
         let volumes = try Archive.create([scratch["src"]], at: out, format: .zip, level: .fast, volumeSize: 4_000)
         #expect(volumes.map(\.lastPathComponent) == ["Archive 2.zip.001", "Archive 2.zip.002", "Archive 2.zip.003"])
         #expect(read(scratch["Archive.zip.001"]) == "old")
+
+        // So is a name with only a later volume left from an earlier set ("Old.zip.003"): a new set would take it in
+        // as its own and read as incomplete. Names compare without regard to case, as the file system reads them.
+        let old = try Archive.create([scratch["src"]], at: scratch["Old.zip"], format: .zip, level: .fast, volumeSize: 4_000)
+        try FileManager.default.removeItem(at: old[0])
+        try FileManager.default.removeItem(at: old[1])
+        let next = Archive.uniqueURL(in: scratch.url, name: "old", extension: "zip")
+        #expect(next.lastPathComponent == "old 2.zip")
+        try writeRandom(bytes: 5_000, to: scratch["small/data.bin"])
+        let new = try Archive.create([scratch["small"]], at: next, format: .zip, level: .fast, volumeSize: 4_000)
+        #expect(new.count == 2)
+        #expect(try Archive.list(new[0]).volumes == new)
+        try write("old", to: scratch["photos.tar.gz.1000"])
+        #expect(Archive.uniqueURL(in: scratch.url, name: "photos", extension: "tar.gz").lastPathComponent == "photos 2.tar.gz")
     }
 }

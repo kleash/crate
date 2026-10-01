@@ -27,7 +27,8 @@ extension Archive {
 
     /// The files to read for `url`: itself, or for a volume of a split archive, all of that archive's volumes from
     /// .001 on. Throws `incompleteSplitArchive` when `url` isn't among them (one before it is missing) or one is cut
-    /// short: every volume but the last is as big as the first, and the last no bigger.
+    /// short: every volume but the last is as big as the first, and the last no bigger. Throws which volume can't be
+    /// opened (no permission, …): libarchive would report the failed read as a damaged or unrecognized archive.
     static func volumes(of url: URL) throws -> [URL] {
         guard let number = volumeNumber(url) else { return [url] }
         var volumes: [URL] = []
@@ -38,6 +39,13 @@ extension Archive {
         }
         guard number <= volumes.count, sizes.dropLast().allSatisfy({ $0 == sizes[0] }),
               (1...max(1, sizes[0])).contains(sizes.last!) else { throw incompleteSplitArchive }
+        for volume in volumes {
+            let fd = open(volume.path, O_RDONLY | O_CLOEXEC)
+            guard fd >= 0 else {
+                throw ArchiveError.failed("Can't read “\(volume.lastPathComponent)”: \(String(cString: strerror(errno)))")
+            }
+            close(fd)
+        }
         return volumes
     }
 }
