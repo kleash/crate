@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- build.sh sets CFBundleShortVersionString and CFBundleVersion from VERSION. -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Crate</string>
+	<key>CFBundleExecutable</key>
+	<string>CrateQuickLook</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.sa.crate.quicklook</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>CrateQuickLook</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.1</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>QLIsDataBasedPreview</key>
+			<false/>
+			<key>QLSupportedContentTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.tar-archive</string>
+				<string>org.gnu.gnu-tar-archive</string>
+				<string>org.gnu.gnu-zip-archive</string>
+				<string>org.gnu.gnu-zip-tar-archive</string>
+				<string>public.bzip2-archive</string>
+				<string>public.tar-bzip2-archive</string>
+				<string>org.tukaani.xz-archive</string>
+				<string>org.tukaani.tar-xz-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
+				<string>com.rarlab.rar-archive</string>
+				<string>public.iso-image</string>
+				<string>public.cpio-archive</string>
+				<string>com.apple.xar-archive</string>
+				<string>com.apple.installer-package-archive</string>
+				<string>public.archive</string>
+			</array>
+			<key>QLSupportsSearchableItems</key>
+			<false/>
+		</dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.quicklook.preview</string>
+		<key>NSExtensionPrincipalClass</key>
+		<string>PreviewViewController</string>
+	</dict>
+</dict>
+</plist>
