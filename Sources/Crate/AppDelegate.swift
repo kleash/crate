@@ -215,6 +215,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// "Open with Crate": each archive in its own window, brought to the front.
+    @objc func openItems(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        handledService = true
+        NSApp.activate(ignoringOtherApps: true)
+        open(fileURLs(on: pboard))
+    }
+
     private func fileURLs(on pboard: NSPasteboard) -> [URL] {
         pboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
     }

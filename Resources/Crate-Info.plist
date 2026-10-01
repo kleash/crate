@@ -96,6 +96,39 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
+				<string>Open with Crate</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>openItems</string>
+			<key>NSPortName</key>
+			<string>Crate</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.tar-archive</string>
+				<string>org.gnu.gnu-tar-archive</string>
+				<string>org.gnu.gnu-zip-archive</string>
+				<string>org.gnu.gnu-zip-tar-archive</string>
+				<string>public.bzip2-archive</string>
+				<string>public.tar-bzip2-archive</string>
+				<string>org.tukaani.xz-archive</string>
+				<string>org.tukaani.tar-xz-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
+				<string>com.rarlab.rar-archive</string>
+				<string>public.iso-image</string>
+				<string>public.cpio-archive</string>
+				<string>com.apple.xar-archive</string>
+				<string>com.apple.installer-package-archive</string>
+				<string>public.z-archive</string>
+				<string>com.apple.bom-compressed-cpio</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
 				<string>Extract Here with Crate</string>
 			</dict>
 			<key>NSMessage</key>

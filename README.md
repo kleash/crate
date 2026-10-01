@@ -15,7 +15,7 @@ that ships with macOS, so it has no third-party dependencies.
 - **Edit** ZIP, 7-Zip and TAR archives: drop files on an open archive to add them, press Delete to remove items.
 - **Finder integration**
   - Open With ▸ Crate.
-  - Right-click ▸ Services ▸ **Compress with Crate** and **Extract Here with Crate**.
+  - Right-click ▸ Services ▸ **Compress with Crate**; on archives also **Open with Crate** and **Extract Here with Crate**.
   - Quick Look: press Space on an archive to see the files inside.
 
 ## Requirements
