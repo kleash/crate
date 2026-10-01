@@ -37,6 +37,9 @@ func runWithPassword(_ title: String?, on window: NSWindow?, name: String, needs
     }
     operationsRunning.enter()
     DispatchQueue.global(qos: .userInitiated).async {
+        // Work the user asked for: without this, App Nap slows it several times over while no Crate window is visible
+        // (behind other windows, or the screen locked).
+        let activity = ProcessInfo.processInfo.beginActivity(options: .userInitiated, reason: title ?? "Archive work")
         let failure: Error?
         do {
             try work(password, progress.update)
@@ -44,6 +47,7 @@ func runWithPassword(_ title: String?, on window: NSWindow?, name: String, needs
         } catch {
             failure = error
         }
+        ProcessInfo.processInfo.endActivity(activity)
         operationsRunning.leave()
         DispatchQueue.main.async {
             runningOperations.removeAll { $0 === progress }
