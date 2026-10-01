@@ -9,10 +9,22 @@ public enum Archive {
     /// lists as a single entry named after the file without its extension.
     /// Needs no passphrase: ZIP names are never encrypted, and 7z/RAR archives with encrypted names
     /// throw `unsupportedEncryption` because libarchive can't decrypt them at all.
+    /// Any volume of a split archive ("name.zip.001", "name.zip.002", …) opens the whole archive; it is read-only.
     public static func list(_ url: URL) throws -> ArchiveListing {
         // An archive opened through a symlink: size, extraction and edits all concern the file it points to.
         let url = url.resolvingSymlinksInPath()
-        let r = try openReader(url, passphrase: nil)
+        let volumes = try self.volumes(of: url)
+        do {
+            return try list(volumes, split: volumeNumber(url) != nil)
+        } catch ArchiveError.failed(let message) where volumeNumber(url) != nil && message != "Unrecognized archive format" {
+            // A split archive that breaks off or jumps mid-way (even while libarchive is still detecting the
+            // format) is missing a volume, or has one cut short. Volumes of something else keep their error.
+            throw incompleteSplitArchive
+        }
+    }
+
+    private static func list(_ volumes: [URL], split: Bool) throws -> ArchiveListing {
+        let r = try openReader(volumes, passphrase: nil)
         defer { archive_read_free(r) }
         var entries: [ArchiveEntry] = []
         var entry: OpaquePointer?
@@ -24,9 +36,9 @@ public enum Archive {
                 : nil
             var size = type == AE_IFREG && archive_entry_size_is_set(e) != 0 ? archive_entry_size(e) : 0
             // A single compressed file has no size in its header; gzip (unlike bzip2 and xz) records it at the end.
-            if family(r) == ARCHIVE_FORMAT_RAW && archive_filter_code(r, 0) == ARCHIVE_FILTER_GZIP { size = gzipSize(url) }
+            if family(r) == ARCHIVE_FORMAT_RAW && archive_filter_code(r, 0) == ARCHIVE_FILTER_GZIP { size = gzipSize(volumes.last!) }
             entries.append(ArchiveEntry(
-                path: path(of: e, in: r, url: url),
+                path: path(of: e, in: r, url: volumes[0]),
                 isDirectory: type == AE_IFDIR,
                 isSymlink: type == AE_IFLNK,
                 size: size,
@@ -34,14 +46,16 @@ public enum Archive {
                 isEncrypted: archive_entry_is_encrypted(e) != 0))
         }
         let writable = WritableFormat(family: family(r), filter: archive_filter_code(r, 0))
-        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-        return ArchiveListing(url: url, archiveEntries: entries, formatName: writable?.displayName ?? describe(r),
-                              writableFormat: writable, archiveSize: size)
+        var name = writable?.displayName ?? describe(r)
+        if split { name += volumes.count == 1 ? " (1 volume)" : " (\(volumes.count) volumes)" }
+        return ArchiveListing(volumes: volumes, archiveEntries: entries, formatName: name, writableFormat: writable,
+                              archiveSize: volumes.reduce(0) { $0 + (fileSize($1) ?? 0) })
     }
 
-    /// Opens `url` for reading with every filter and format libarchive supports; a compressed file that no
-    /// archive format claims opens in libarchive's "raw" format as one entry (see `path(of:in:url:)`).
-    static func openReader(_ url: URL, passphrase: String?) throws -> OpaquePointer {
+    /// Opens `volumes` (one file, or a split archive's volumes in order) for reading with every filter and format
+    /// libarchive supports; a compressed file that no archive format claims opens in libarchive's "raw" format as
+    /// one entry (see `path(of:in:url:)`).
+    static func openReader(_ volumes: [URL], passphrase: String?) throws -> OpaquePointer {
         func reader(raw: Bool) -> OpaquePointer {
             let r = archive_read_new()!
             archive_read_support_filter_all(r)
@@ -49,13 +63,15 @@ public enum Archive {
             if let passphrase { archive_read_add_passphrase(r, passphrase) }
             return r
         }
+        func open(_ r: OpaquePointer) -> Int32 {
+            volumes.count == 1 ? archive_read_open_filename(r, volumes[0].path, 65536) : VolumeReader.open(r, volumes)
+        }
         let r = reader(raw: false)
-        if archive_read_open_filename(r, url.path, 65536) == ARCHIVE_OK { return r }
+        if open(r) == ARCHIVE_OK { return r }
         let error = message(r)
         archive_read_free(r)
         let single = reader(raw: true)
-        if archive_read_open_filename(single, url.path, 65536) == ARCHIVE_OK,
-           archive_filter_code(single, 0) != ARCHIVE_FILTER_NONE {
+        if open(single) == ARCHIVE_OK, archive_filter_code(single, 0) != ARCHIVE_FILTER_NONE {
             return single
         }
         archive_read_free(single)
@@ -82,9 +98,9 @@ public enum Archive {
     }
 
     /// The entry's normalized path. In the raw format (a single compressed file) it is the file's name
-    /// without its last extension: "notes.txt.gz" → "notes.txt".
+    /// without its last extension: "notes.txt.gz" → "notes.txt" (and "notes.txt.gz.001" → "notes.txt").
     static func path(of e: OpaquePointer, in r: OpaquePointer, url: URL) -> String {
-        if family(r) == ARCHIVE_FORMAT_RAW { return url.deletingPathExtension().lastPathComponent }
+        if family(r) == ARCHIVE_FORMAT_RAW { return archiveFile(url).deletingPathExtension().lastPathComponent }
         let raw = archive_entry_pathname_utf8(e) ?? archive_entry_pathname(e)
         return raw.map { normalize(String(cString: $0)) } ?? ""
     }
@@ -117,6 +133,12 @@ public enum Archive {
     static func fileType(_ path: String) -> mode_t? {
         var st = stat()
         return lstat(path, &st) == 0 ? st.st_mode & S_IFMT : nil
+    }
+
+    /// The size of the regular file at `url` (following symlinks); nil when there is none.
+    static func fileSize(_ url: URL) -> Int64? {
+        var st = stat()
+        return stat(url.path, &st) == 0 && st.st_mode & S_IFMT == S_IFREG ? Int64(st.st_size) : nil
     }
 
     /// `path` with every symlink in it resolved; nil (and errno set) when it doesn't exist.

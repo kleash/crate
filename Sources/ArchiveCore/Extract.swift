@@ -25,7 +25,7 @@ extension Archive {
         let prefix = root == "/" ? "" : root
         var meter = Meter(total: listing.entries.reduce(0) { selection.relativePath($1.path) == nil ? $0 : $0 + $1.size })
 
-        let r = try openReader(listing.url, passphrase: passphrase)
+        let r = try openReader(listing.volumes, passphrase: passphrase)
         defer { archive_read_free(r) }
         let disk = withUmaskLock { archive_write_disk_new()! }
         defer { archive_write_free(disk) }
@@ -104,26 +104,26 @@ extension Archive {
 
     /// Where "Extract Here" should extract everything so that `folder` gains exactly one new item: `folder` itself
     /// when the archive holds a single top-level item that doesn't exist there yet, otherwise a new folder named
-    /// after the archive ("demo.tar.gz" → "demo", or "demo 2", "demo 3", … when taken).
+    /// after the archive ("demo.tar.gz" or "demo.zip.001" → "demo", or "demo 2", "demo 3", … when taken).
     /// Returns the `destination` to pass to `extract` and the `item` the extraction creates.
     public static func smartExtractDestination(_ listing: ArchiveListing, in folder: URL) -> (destination: URL, item: URL) {
         let topLevel = Set(listing.entries.compactMap { components($0.path).first })
         if topLevel.count == 1, let top = topLevel.first, fileType(folder.appendingPathComponent(top).path) == nil {
             return (folder, folder.appendingPathComponent(top))
         }
-        var stem = listing.url.deletingPathExtension()
+        var stem = archiveFile(listing.url).deletingPathExtension()
         if stem.pathExtension.lowercased() == "tar" { stem.deletePathExtension() }
         let item = uniqueURL(in: folder, name: stem.lastPathComponent)
         return (item, item)
     }
 
-    /// `folder/name.ext`, or the first of "name 2.ext", "name 3.ext", … that doesn't exist yet.
-    /// `ext` has no leading dot ("tar.gz"); pass "" for a folder.
+    /// `folder/name.ext`, or the first of "name 2.ext", "name 3.ext", … that doesn't exist yet, nor as the first
+    /// volume of a split archive ("name.ext.001"). `ext` has no leading dot ("tar.gz"); pass "" for a folder.
     public static func uniqueURL(in folder: URL, name: String, extension ext: String = "") -> URL {
         var n = 1
         while true {
             let candidate = folder.appendingPathComponent((n == 1 ? name : "\(name) \(n)") + (ext.isEmpty ? "" : "." + ext))
-            if fileType(candidate.path) == nil { return candidate }
+            if fileType(candidate.path) == nil && fileType(volume(1, of: candidate).path) == nil { return candidate }
             n += 1
         }
     }

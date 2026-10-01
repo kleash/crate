@@ -113,6 +113,31 @@ const char *	archive_version_details(void);
 #define ARCHIVE_READ_FORMAT_ENCRYPTION_UNSUPPORTED -2
 #define ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW -1
 
+/* ---- Client callbacks (archive_read_open2, archive_write_open) -------- */
+
+/* Returns size actually read, zero for EOF, -1 for error. */
+typedef la_ssize_t	archive_read_callback(struct archive *,
+			    void *_client_data, const void **_buffer);
+/* Skips at most request bytes from archive and returns the skipped amount.
+ * This may skip fewer bytes than requested; it may even skip zero bytes.
+ * If you do skip fewer bytes than requested, libarchive will invoke your
+ * read callback and discard data as necessary to make up the full skip.
+ */
+typedef la_int64_t	archive_skip_callback(struct archive *,
+			    void *_client_data, la_int64_t request);
+/* Seeks to specified location in the file and returns the position.
+ * Whence values are SEEK_SET, SEEK_CUR, SEEK_END from stdio.h.
+ * Return ARCHIVE_FATAL if the seek fails for any reason.
+ */
+typedef la_int64_t	archive_seek_callback(struct archive *,
+    void *_client_data, la_int64_t offset, int whence);
+/* Returns size actually written, zero on EOF, -1 on error. */
+typedef la_ssize_t	archive_write_callback(struct archive *,
+			    void *_client_data,
+			    const void *_buffer, size_t _length);
+typedef int	archive_open_callback(struct archive *, void *_client_data);
+typedef int	archive_close_callback(struct archive *, void *_client_data);
+
 /* ---- Reading an archive ----------------------------------------------- */
 
 struct archive	*archive_read_new(void);
@@ -122,6 +147,12 @@ int archive_read_support_format_empty(struct archive *);
 int archive_read_support_format_raw(struct archive *);
 int archive_read_open_filename(struct archive *,
 		     const char *_filename, size_t _block_size);
+/* Set before archive_read_open2(), which has no seek parameter. */
+int archive_read_set_seek_callback(struct archive *,
+    archive_seek_callback *);
+int archive_read_open2(struct archive *, void *_client_data,
+		     archive_open_callback *, archive_read_callback *,
+		     archive_skip_callback *, archive_close_callback *);
 int archive_read_next_header(struct archive *,
 		     struct archive_entry **);
 int	archive_read_has_encrypted_entries(struct archive *);
@@ -151,8 +182,12 @@ int archive_write_set_options(struct archive *_a,
 			    const char *opts);
 int archive_write_set_passphrase(struct archive *_a, const char *p);
 int archive_write_open_filename(struct archive *, const char *_file);
-/* The caller owns the fd: libarchive never closes it. */
-int archive_write_open_fd(struct archive *, int _fd);
+int archive_write_open(struct archive *, void *,
+		     archive_open_callback *, archive_write_callback *,
+		     archive_close_callback *);
+/* 1: no padding after the last byte (the default pads to a full 10240-byte block). */
+int archive_write_set_bytes_in_last_block(struct archive *,
+		     int bytes_in_last_block);
 int archive_write_header(struct archive *,
 		     struct archive_entry *);
 la_ssize_t	archive_write_data(struct archive *,

@@ -19,28 +19,32 @@ public struct ArchiveEntry: Hashable, Sendable {
 
 /// What `Archive.list(_:)` found in an archive.
 public struct ArchiveListing: Sendable {
-    /// The archive file, with symlinks resolved.
+    /// The archive file, with symlinks resolved; for a split archive, its first volume ("name.zip.001").
     public let url: URL
+    /// The files the archive is read from: `url` alone, or every volume of a split archive in order.
+    public let volumes: [URL]
     /// Every entry in archive order, plus the folders that are only implied by the paths below them.
     /// Each path appears once; when the archive repeats one, the last copy wins (as it would on extraction).
     public let entries: [ArchiveEntry]
-    /// Short name for display: "ZIP", "TAR.GZ", "7-Zip", "RAR5", "ISO9660", …
+    /// Short name for display: "ZIP", "TAR.GZ", "7-Zip", "RAR5", "ISO9660", …; "ZIP (3 volumes)" for a split archive.
     public let formatName: String
-    /// The format `Archive.rewrite` writes back; nil for read-only formats (RAR, ISO, single-file .gz, …).
+    /// The format when Crate can write it; nil for RAR, ISO, single-file .gz, … A split archive keeps its format
+    /// but isn't editable.
     public let writableFormat: WritableFormat?
     public let hasEncryptedEntries: Bool
-    /// Size of the archive file in bytes.
+    /// Size of the archive in bytes (all volumes of a split archive).
     public let archiveSize: Int64
     private let childrenByFolder: [String: [ArchiveEntry]]
 
-    public var isEditable: Bool { writableFormat != nil }
+    /// Whether `Archive.rewrite` can change the archive: a format Crate writes, not split into volumes.
+    public var isEditable: Bool { writableFormat != nil && Archive.volumeNumber(url) == nil }
 
     /// The entries directly inside `folder` ("" for the top level), in archive order.
     public func children(of folder: String) -> [ArchiveEntry] {
         childrenByFolder[normalize(folder)] ?? []
     }
 
-    init(url: URL, archiveEntries: [ArchiveEntry], formatName: String, writableFormat: WritableFormat?, archiveSize: Int64) {
+    init(volumes: [URL], archiveEntries: [ArchiveEntry], formatName: String, writableFormat: WritableFormat?, archiveSize: Int64) {
         var entries: [ArchiveEntry] = []
         var index: [String: Int] = [:]
         for entry in archiveEntries where !entry.path.isEmpty {
@@ -59,7 +63,8 @@ public struct ArchiveListing: Sendable {
                 entries.append(entry)
             }
         }
-        self.url = url
+        self.url = volumes[0]
+        self.volumes = volumes
         self.entries = entries
         self.formatName = formatName
         self.writableFormat = writableFormat
