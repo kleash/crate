@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 import os
 
 let log = Logger(subsystem: "com.sa.crate", category: "app")
+/// "Extract Here with Crate" runs its extractions on this queue, one at a time (see `AppDelegate.extractItems`).
+private let extractHereTurns = DispatchQueue(label: "com.sa.crate.extract-here")
 
 /// App lifecycle, the Welcome window, New Archive, the menu bar and the Finder services.
 /// Archive windows are plain AppKit windows (ArchiveWindowController), one per archive.
@@ -190,6 +192,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// "Extract Here with Crate": smart-extracts each archive next to itself, asking for a password if needed.
+    /// The extractions take turns, each choosing its destination when its turn comes: chosen all at once, two
+    /// archives holding the same top-level item would both extract it to the same place, one over the other.
     @objc func extractItems(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         handledService = true
         let archives = fileURLs(on: pboard)
@@ -202,10 +206,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     case .failure(let error):
                         showError(error, on: nil)
                     case .success(let listing):
-                        let (destination, item) = Archive.smartExtractDestination(listing, in: url.deletingLastPathComponent())
+                        var target: (destination: URL, item: URL)?  // kept for a retry with another password
                         runWithPassword(nil, on: nil, name: url.lastPathComponent, needsPassword: listing.needsPassword, password: nil, work: { password, progress in
-                            try Archive.extract(listing, to: destination, passphrase: password, progress: progress)
+                            try extractHereTurns.sync {
+                                if target == nil { target = Archive.smartExtractDestination(listing, in: url.deletingLastPathComponent()) }
+                                try Archive.extract(listing, to: target!.destination, passphrase: password, progress: progress)
+                            }
                         }, done: { _ in
+                            guard let item = target?.item else { return }
                             log.log("service extracted \(url.path, privacy: .public) to \(item.path, privacy: .public)")
                             NSWorkspace.shared.activateFileViewerSelecting([item])
                         })
