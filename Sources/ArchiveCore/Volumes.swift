@@ -2,7 +2,7 @@ import CArchive
 import Foundation
 
 /// Split archives, 7-Zip style: the bytes of one archive cut into volumes "name.zip.001", "name.zip.002", …
-/// (`cat name.zip.0* > name.zip` joins them back). `Archive.create` writes them; `list` reads them from any volume.
+/// (`cat name.zip.[0-9][0-9][0-9] > name.zip` joins them back). `Archive.create` writes them; `list` reads them from any volume.
 extension Archive {
     static let incompleteSplitArchive = ArchiveError.failed(
         "This split archive is incomplete — make sure all parts (.001, .002, …) are in the same folder.")
