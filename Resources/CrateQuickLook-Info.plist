@@ -42,6 +42,9 @@
 				<string>public.cpio-archive</string>
 				<string>com.apple.xar-archive</string>
 				<string>com.apple.installer-package-archive</string>
+				<string>com.sun.java-archive</string>
+				<string>public.z-archive</string>
+				<string>com.apple.bom-compressed-cpio</string>
 				<string>public.archive</string>
 			</array>
 			<key>QLSupportsSearchableItems</key>
