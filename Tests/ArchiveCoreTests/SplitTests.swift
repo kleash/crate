@@ -142,6 +142,19 @@ struct SplitTests {
         #expect(snapshot(destination.appendingPathComponent("tree")) == snapshot(tree))
     }
 
+    @Test func encryptedSplitZip() throws {
+        let tree = try makeTree(in: scratch["src"])
+        try writeRandom(bytes: 20_000, to: tree.appendingPathComponent("sub/data.bin"))
+        let volumes = try Archive.create([tree], at: scratch["secret.zip"], format: .zip, passphrase: "s3cret", volumeSize: 8_000)
+        #expect(volumes.count == 3)
+        let listing = try Archive.list(volumes[1])
+        #expect(listing.hasEncryptedEntries && listing.writableFormat == .zip)
+        #expect(throws: ArchiveError.passphraseRequired) { try Archive.extract(listing, to: self.scratch["none"]) }
+        #expect(throws: ArchiveError.wrongPassphrase) { try Archive.extract(listing, to: self.scratch["wrong"], passphrase: "nope") }
+        try Archive.extract(listing, to: scratch["out"], passphrase: "s3cret")
+        #expect(snapshot(scratch["out/tree"]) == snapshot(tree))
+    }
+
     @Test func cancellingRemovesEveryVolume() throws {
         try writeRandom(bytes: 3_000_000, to: scratch["src/big.bin"])
         for format in [WritableFormat.zip, .sevenZip, .tarGz] {

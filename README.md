@@ -5,17 +5,23 @@ that ships with macOS, so it has no third-party dependencies.
 
 ## Features
 
-- **Open** ZIP, 7-Zip, RAR/RAR5, TAR, TAR.GZ/.BZ2/.XZ, single-file .gz/.bz2/.xz, ISO, CPIO and XAR/PKG.
+- **Open** ZIP, 7-Zip, RAR/RAR5, TAR, TAR.GZ/.BZ2/.XZ, single-file .gz/.bz2/.xz, ISO, CPIO and XAR/PKG, and split
+  archives (name.zip.001, name.zip.002, …: open the .001).
 - **Browse** one window per archive: folders, path bar, sortable columns, search across the whole archive,
   Quick Look preview with Space.
 - **Extract** the selection or everything, or use **Extract Here**, which adds no extra folder when the archive
   has a single top-level item. You can also drag items out to Finder.
-- **Create** ZIP, 7-Zip, TAR, TAR.GZ, TAR.XZ or TAR.BZ2 archives by dropping files on Crate.
-  macOS junk files (.DS_Store, `._*`, `__MACOSX`) are left out, and ZIPs can have an AES-256 password.
+- **Create** ZIP, 7-Zip, TAR, TAR.GZ, TAR.XZ or TAR.BZ2 archives: drop files on Crate, choose File ▸ New Archive…,
+  or use Compress with Crate in Finder. The New Archive window sets the format, compression, an AES-256 password
+  (ZIP only), splitting into volumes and where to save. macOS junk files (.DS_Store, `._*`, `__MACOSX`) are left out.
+- **Split into volumes** of 10 MB, 100 MB, 700 MB (CD), 1 GB, 4 GB (FAT32) or a custom size (MB of 1,048,576 bytes,
+  as in 7-Zip): name.zip.001, name.zip.002, … They are plain pieces of one archive: 7-Zip and Keka open the .001
+  directly, and anywhere else `cat name.zip.[0-9][0-9][0-9] > name.zip` joins them back into an ordinary archive.
 - **Edit** ZIP, 7-Zip and TAR archives: drop files on an open archive to add them, press Delete to remove items.
 - **Finder integration**
   - Open With ▸ Crate.
-  - Right-click ▸ Services ▸ **Compress with Crate**; on archives also **Open with Crate** and **Extract Here with Crate**.
+  - Right-click ▸ Services ▸ **Compress with Crate** (opens the New Archive window); on archives, .001 volumes
+    included, also **Open with Crate** and **Extract Here with Crate** (with progress and Cancel).
   - Quick Look: press Space on an archive to see the files inside.
 
 ## Requirements
@@ -62,5 +68,6 @@ No administrator rights are needed.
 - Adding or deleting items rewrites the whole archive at Normal compression. An encrypted ZIP is re-encrypted
   with AES-256.
 - There is no per-file packed size (libarchive doesn't report one). The status bar shows the archive's size.
-- RAR, ISO, CPIO, XAR/PKG and single-file .gz/.bz2/.xz archives are read-only.
+- RAR, ISO, CPIO, XAR/PKG, single-file .gz/.bz2/.xz and split archives are read-only.
+- Quick Look doesn't preview split archives: its sandbox lets it read only the selected .001, not the other volumes.
 - A single .bz2 or .xz file doesn't record its uncompressed size, so Crate shows it as Zero KB.

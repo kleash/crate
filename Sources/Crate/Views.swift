@@ -64,9 +64,18 @@ struct NewArchiveOptions {
     let level: CompressionLevel
     let password: String?
     let excludeJunk: Bool
+    /// Bytes per volume when splitting; nil for one file.
+    let volumeSize: Int64?
 }
 
-/// The New Archive sheet: name, format, level, optional ZIP password, junk exclusion and destination folder.
+/// "Split into volumes" sizes in MB of 1,048,576 bytes, as 7-Zip counts them (its "10M" is 10,485,760 bytes).
+/// A FAT32 file can hold 4,294,967,295 bytes, one short of 4 GiB, so that preset is 4,095 MB.
+private let volumePresets: [(title: String, megabytes: Int64)] = [
+    ("10 MB", 10), ("100 MB", 100), ("700 MB (CD)", 700), ("1 GB", 1024), ("4 GB (FAT32)", 4095),
+]
+
+/// The New Archive window's options: name, format, level, junk exclusion, optional ZIP password, volumes and
+/// destination folder.
 struct NewArchiveView: View {
     let items: [URL]
     let cancel: () -> Void
@@ -79,6 +88,9 @@ struct NewArchiveView: View {
     @State private var password = ""
     @State private var confirmation = ""
     @State private var excludeJunk = true
+    /// MB per volume: 0 is Off, -1 is Custom (`customSize`).
+    @State private var split: Int64 = 0
+    @State private var customSize = ""
 
     init(items: [URL], cancel: @escaping () -> Void, create: @escaping (NewArchiveOptions) -> Void) {
         self.items = items
@@ -95,8 +107,16 @@ struct NewArchiveView: View {
         return trimmed.lowercased().hasSuffix(suffix) ? String(trimmed.dropLast(suffix.count)) : trimmed
     }
 
+    /// Bytes per volume; nil when not splitting, or when the custom size isn't a whole number of MB above 0.
+    private var volumeSize: Int64? {
+        let megabytes = split == -1 ? Int64(customSize.trimmingCharacters(in: .whitespaces)) ?? 0 : split
+        let (bytes, overflow) = megabytes.multipliedReportingOverflow(by: 1 << 20)
+        return megabytes > 0 && !overflow ? bytes : nil
+    }
+
     private var isValid: Bool {
         !baseName.isEmpty && !baseName.contains("/") && (format != .zip || password == confirmation)
+            && (split != -1 || volumeSize != nil)
     }
 
     var body: some View {
@@ -119,9 +139,30 @@ struct NewArchiveView: View {
                     .disabled(format != .zip)
                 SecureField("Confirm:", text: $confirmation)
                     .disabled(format != .zip)
-                Text(format == .zip ? "Optional. Encrypts the files with AES-256." : "Only ZIP archives can have a password.")
+                Text(format == .zip ? "Optional. Encrypts the files with AES-256."
+                     : "Passwords need ZIP — 7-Zip/TAR encryption isn’t available in macOS’s archive library.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                LabeledContent("Split into volumes:") {
+                    HStack {
+                        Picker("Split into volumes:", selection: $split) {
+                            Text("Off").tag(Int64(0))
+                            Divider()
+                            ForEach(volumePresets, id: \.megabytes) { Text($0.title).tag($0.megabytes) }
+                            Divider()
+                            Text("Custom…").tag(Int64(-1))
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        if split == -1 {
+                            TextField("Volume size", text: $customSize, prompt: Text("250"))
+                                .labelsHidden()
+                                .frame(width: 70)
+                            Text("MB")
+                        }
+                    }
+                }
                 LabeledContent("Save in:") {
                     HStack {
                         Text((folder.path as NSString).abbreviatingWithTildeInPath)
@@ -138,7 +179,7 @@ struct NewArchiveView: View {
                 Button("Create") {
                     create(NewArchiveOptions(folder: folder, name: baseName, format: format, level: level,
                                              password: format == .zip && !password.isEmpty ? password : nil,
-                                             excludeJunk: excludeJunk))
+                                             excludeJunk: excludeJunk, volumeSize: volumeSize))
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!isValid)

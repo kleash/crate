@@ -11,8 +11,10 @@ private let extractHereTurns = DispatchQueue(label: "com.sa.crate.extract-here")
 /// App lifecycle, the Welcome window, New Archive, the menu bar and the Finder services.
 /// Archive windows are plain AppKit windows (ArchiveWindowController), one per archive.
 @main @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var archiveWindows: [String: ArchiveWindowController] = [:]
+    /// New Archive windows, kept until they close (`windowWillClose`).
+    private var newArchiveWindows: [NSWindow] = []
     private var welcome: NSWindow?
     private var cascadePoint = NSPoint.zero
     private var handledService = false
@@ -31,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Files to open and a service request that launched the app arrive before this; otherwise greet.
-        let greet = archiveWindows.isEmpty && welcome == nil && !handledService
+        let greet = archiveWindows.isEmpty && newArchiveWindows.isEmpty && welcome == nil && !handledService
         log.log("launched (welcome: \(greet, privacy: .public))")
         if greet { showWelcome() }
     }
@@ -74,10 +76,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !others.isEmpty { showNewArchive(others) }
     }
 
-    /// A file whose type is an archive (disk images other than ISO excluded: libarchive can't read them).
+    /// A file whose type is an archive (disk images other than ISO excluded: libarchive can't read them), or the
+    /// first volume of a split archive ("name.zip.001"), whatever type another app may have given .001 files.
     private func isArchive(_ url: URL) -> Bool {
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentTypeKey])
         guard values?.isDirectory == false, let type = values?.contentType else { return false }
+        if url.pathExtension == "001" { return true }
         return type.conforms(to: .archive) && (!type.conforms(to: .diskImage) || type.identifier == "public.iso-image")
     }
 
@@ -98,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cascadePoint = window.cascadeTopLeft(from: cascadePoint)
         }
         controller.showWindow(nil)
-        if let welcome, welcome.attachedSheet == nil { welcome.orderOut(nil) }
+        welcome?.orderOut(nil)
         log.log("window opened: \(url.path, privacy: .public)")
     }
 
@@ -115,8 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Welcome and New Archive
 
-    @discardableResult
-    private func showWelcome() -> NSWindow {
+    private func showWelcome() {
         if welcome == nil {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 300),
                                   styleMask: [.titled, .closable, .miniaturizable],
@@ -135,7 +138,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             welcome = window
         }
         welcome!.makeKeyAndOrderFront(nil)
-        return welcome!
     }
 
     @objc func showNewArchivePanel(_ sender: Any?) {
@@ -148,52 +150,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showNewArchive(panel.urls)
     }
 
-    /// The New Archive sheet, shown on the Welcome window.
+    /// The New Archive window for `items`, in front: the options, then on Create a progress sheet; once the archive
+    /// is made it is revealed in Finder and the window closes. Opened by drops on the Dock icon and the Welcome
+    /// window, File ▸ New Archive… and "Compress with Crate".
     private func showNewArchive(_ items: [URL]) {
-        log.log("new archive sheet requested for \(items.count, privacy: .public) item(s): \(items.map(\.lastPathComponent).joined(separator: ", "), privacy: .public)")
-        let window = showWelcome()
-        let view = NewArchiveView(
+        log.log("new archive window for \(items.count, privacy: .public) item(s): \(items.map(\.lastPathComponent).joined(separator: ", "), privacy: .public)")
+        let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = "New Archive"
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.delegate = self
+        let controller = NSHostingController(rootView: NewArchiveView(
             items: items,
-            cancel: { if let sheet = window.attachedSheet { window.endSheet(sheet) } },
-            create: { [unowned self] options in
-                if let sheet = window.attachedSheet { window.endSheet(sheet) }
-                create(items, options, on: window)
-            })
-        presentSheet(view, on: window)
+            cancel: { [weak window] in window?.close() },
+            create: { [weak self, weak window] options in
+                if let self, let window { create(items, options, in: window) }
+            }))
+        window.contentViewController = controller
+        window.setContentSize(controller.view.fittingSize)
+        window.center()
+        newArchiveWindows.append(window)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
 
-    private func create(_ items: [URL], _ options: NewArchiveOptions, on window: NSWindow) {
+    func windowWillClose(_ notification: Notification) {
+        newArchiveWindows.removeAll { $0 === notification.object as? NSWindow }
+    }
+
+    private func create(_ items: [URL], _ options: NewArchiveOptions, in window: NSWindow) {
         let out = Archive.uniqueURL(in: options.folder, name: options.name, extension: options.format.fileExtension)
+        var files: [URL] = []
         runWithPassword("Creating “\(out.lastPathComponent)”…", on: window, name: out.lastPathComponent, needsPassword: false, password: nil, work: { _, progress in
-            try Archive.create(items, at: out, format: options.format, level: options.level, passphrase: options.password,
-                               excludeJunk: options.excludeJunk, progress: progress)
+            files = try Archive.create(items, at: out, format: options.format, level: options.level, passphrase: options.password,
+                                       excludeJunk: options.excludeJunk, volumeSize: options.volumeSize, progress: progress)
         }, done: { _ in
-            log.log("created \(out.path, privacy: .public)")
-            NSWorkspace.shared.activateFileViewerSelecting([out])
+            log.log("created \(files.map(\.lastPathComponent).joined(separator: ", "), privacy: .public) in \(out.deletingLastPathComponent().path, privacy: .public)")
+            NSWorkspace.shared.activateFileViewerSelecting(files)
+            window.close()
         })
     }
 
     // MARK: Services (NSServices in Info.plist; NSApp.servicesProvider = self)
 
-    /// "Compress with Crate": a ZIP next to the items, named after the single item or "Archive", no dialog.
+    /// "Compress with Crate": the New Archive window for the selected items (format, password, volumes, …).
     @objc func compressItems(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         handledService = true
         let items = fileURLs(on: pboard)
         log.log("service compress: \(items.count, privacy: .public) item(s)")
-        guard let first = items.first else { return }
-        let out = Archive.uniqueURL(in: first.deletingLastPathComponent(), name: items.count == 1 ? first.lastPathComponent : "Archive",
-                                    extension: WritableFormat.zip.fileExtension)
-        runWithPassword(nil, on: nil, name: out.lastPathComponent, needsPassword: false, password: nil, work: { _, progress in
-            try Archive.create(items, at: out, format: .zip, level: .normal, excludeJunk: true, progress: progress)
-        }, done: { _ in
-            log.log("service created \(out.path, privacy: .public)")
-            NSWorkspace.shared.activateFileViewerSelecting([out])
-        })
+        if !items.isEmpty { showNewArchive(items) }
     }
 
-    /// "Extract Here with Crate": smart-extracts each archive next to itself, asking for a password if needed.
-    /// The extractions take turns, each choosing its destination when its turn comes: chosen all at once, two
-    /// archives holding the same top-level item would both extract it to the same place, one over the other.
+    /// "Extract Here with Crate": smart-extracts each archive next to itself, asking for a password if needed, with
+    /// a progress window and Cancel. The extractions take turns, each choosing its destination when its turn comes:
+    /// chosen all at once, two archives holding the same top-level item would both extract it to the same place.
     @objc func extractItems(_ pboard: NSPasteboard, userData: String?, error: AutoreleasingUnsafeMutablePointer<NSString?>) {
         handledService = true
         let archives = fileURLs(on: pboard)
@@ -207,7 +217,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         showError(error, on: nil)
                     case .success(let listing):
                         var target: (destination: URL, item: URL)?  // kept for a retry with another password
-                        runWithPassword(nil, on: nil, name: url.lastPathComponent, needsPassword: listing.needsPassword, password: nil, work: { password, progress in
+                        runWithPassword("Extracting “\(url.lastPathComponent)”…", on: nil, name: url.lastPathComponent,
+                                        needsPassword: listing.needsPassword, password: nil, work: { password, progress in
                             try extractHereTurns.sync {
                                 if target == nil { target = Archive.smartExtractDestination(listing, in: url.deletingLastPathComponent()) }
                                 try Archive.extract(listing, to: target!.destination, passphrase: password, progress: progress)

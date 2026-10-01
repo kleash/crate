@@ -69,9 +69,12 @@ Crate is installed in ~/Applications.
 
   Open an archive     Right-click it in Finder ▸ Open With ▸ Crate (Get Info ▸ "Open with" ▸ Change All
                       makes Crate the default), or drop it on Crate's Dock icon or Welcome window.
-  Make an archive     Drop files or folders on Crate, or choose File ▸ New Archive… in Crate.
+  Make an archive     Drop files or folders on Crate, choose File ▸ New Archive…, or use Compress with Crate.
+                      Pick the format, a password (ZIP) and whether to split it into volumes (name.zip.001, …).
+  Split archives      Open the .001 in Crate. 7-Zip and Keka open it directly too; anywhere else,
+                      cat name.zip.[0-9][0-9][0-9] > name.zip joins the volumes back into one archive.
   Finder services     Select files or folders, right-click ▸ Services (some macOS versions: Quick Actions)
-                      ▸ Compress with Crate. On archives: Open with Crate, Extract Here with Crate.
+                      ▸ Compress with Crate. On archives (and .001 volumes): Open with Crate, Extract Here with Crate.
                       If they are missing, turn them on in System Settings ▸ Keyboard ▸ Keyboard Shortcuts…
                       ▸ Services ▸ Files and Folders.
   Quick Look          Select an archive in Finder and press Space to see the files inside.

@@ -13,9 +13,10 @@ extension ArchiveListing {
 @MainActor var runningOperations: [ProgressModel] = []
 let operationsRunning = DispatchGroup()
 
-/// Runs `work` off the main thread with `password`, showing a progress sheet with Cancel on `window` when `title`
-/// is set. Asks for a password first when `needsPassword` and none is known, and again (then runs `work` again) when
-/// it throws `passphraseRequired` or `wrongPassphrase`. On success calls `done` with the password that worked.
+/// Runs `work` off the main thread with `password`, showing progress with Cancel when `title` is set: a sheet on
+/// `window`, or without one (Finder services) a small window of its own. Asks for a password first when
+/// `needsPassword` and none is known, and again (then runs `work` again) when it throws `passphraseRequired` or
+/// `wrongPassphrase`. On success calls `done` with the password that worked.
 /// Cancelling is silent; other errors are shown in an alert (a sheet on `window`, app-modal without one).
 @MainActor
 func runWithPassword(_ title: String?, on window: NSWindow?, name: String, needsPassword: Bool, password: String?,
@@ -29,6 +30,8 @@ func runWithPassword(_ title: String?, on window: NSWindow?, name: String, needs
     let sheet: NSWindow?
     if let title, let window {
         sheet = presentSheet(ProgressSheet(title: title, model: progress), on: window)
+    } else if let title {
+        sheet = progressWindow(ProgressSheet(title: title, model: progress))
     } else {
         sheet = nil
     }
@@ -44,7 +47,7 @@ func runWithPassword(_ title: String?, on window: NSWindow?, name: String, needs
         operationsRunning.leave()
         DispatchQueue.main.async {
             runningOperations.removeAll { $0 === progress }
-            if let sheet { window?.endSheet(sheet) }
+            if let sheet, let window { window.endSheet(sheet) } else { sheet?.close() }
             guard let failure else { return done(password) }
             switch failure as? ArchiveError {
             case .cancelled?: break
@@ -115,6 +118,26 @@ func presentSheet<V: View>(_ view: V, on window: NSWindow) -> NSWindow {
     sheet.setContentSize(controller.view.fittingSize)  // the window starts at 1×32 until SwiftUI's first layout
     window.beginSheet(sheet)
     return sheet
+}
+
+/// Progress with no window to attach a sheet to: a small window of its own, in front. Cancel is the way out, so it
+/// has no close button. Several at once (one per archive) step down from the centre instead of covering each other.
+@MainActor
+func progressWindow(_ view: ProgressSheet) -> NSWindow {
+    let controller = NSHostingController(rootView: view)
+    let window = NSWindow(contentViewController: controller)
+    window.styleMask = [.titled]
+    window.title = "Crate"
+    window.isReleasedWhenClosed = false
+    window.setContentSize(controller.view.fittingSize)
+    window.center()
+    let open = NSApp.windows.filter {
+        $0 !== window && $0.isVisible && $0.sheetParent == nil && $0.contentViewController is NSHostingController<ProgressSheet>
+    }
+    window.setFrameOrigin(NSPoint(x: window.frame.minX + CGFloat(open.count) * 24, y: window.frame.minY - CGFloat(open.count) * 24))
+    NSApp.activate(ignoringOtherApps: true)
+    window.makeKeyAndOrderFront(nil)
+    return window
 }
 
 /// "1 item", "12 items", "1,234 items".

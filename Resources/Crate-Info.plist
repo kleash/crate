@@ -34,6 +34,7 @@
 				<string>com.apple.installer-package-archive</string>
 				<string>public.z-archive</string>
 				<string>com.apple.bom-compressed-cpio</string>
+				<string>com.sa.crate.split-archive-part</string>
 			</array>
 		</dict>
 		<!-- Any file or folder, rank None: accepted when dropped on the Dock icon (to compress it)
@@ -123,6 +124,7 @@
 				<string>com.apple.installer-package-archive</string>
 				<string>public.z-archive</string>
 				<string>com.apple.bom-compressed-cpio</string>
+				<string>com.sa.crate.split-archive-part</string>
 			</array>
 		</dict>
 		<dict>
@@ -156,7 +158,31 @@
 				<string>com.apple.installer-package-archive</string>
 				<string>public.z-archive</string>
 				<string>com.apple.bom-compressed-cpio</string>
+				<string>com.sa.crate.split-archive-part</string>
 			</array>
+		</dict>
+	</array>
+	<!-- The first volume of a split archive (name.zip.001, as 7-Zip, Keka and Crate make them): Open With, Open with
+	     Crate and Extract Here with Crate. Not for Quick Look: its sandbox can read only the selected volume. -->
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.sa.crate.split-archive-part</string>
+			<key>UTTypeDescription</key>
+			<string>Split archive (first part)</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>001</string>
+				</array>
+			</dict>
 		</dict>
 	</array>
 </dict>
