@@ -77,7 +77,9 @@ func run(_ tool: String, _ arguments: [String], in directory: URL? = nil) throws
     let process = Process()
     process.executableURL = URL(fileURLWithPath: tool)
     process.arguments = arguments
-    if let directory { process.currentDirectoryURL = directory }
+    // Not the process's working directory: libarchive's disk reader briefly moves it into the folder it is archiving
+    // (fchdir), so a test running in parallel could start the tool in another test's scratch folder, gone by then.
+    process.currentDirectoryURL = directory ?? URL(fileURLWithPath: "/")
     let output = Pipe()
     process.standardOutput = output
     process.standardError = FileHandle.nullDevice
