@@ -5,6 +5,51 @@
 	<!-- build.sh sets CFBundleShortVersionString and CFBundleVersion from VERSION. -->
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<!-- Archives: Finder's Open With lists Crate, and it can be made the default app. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.tar-archive</string>
+				<string>org.gnu.gnu-tar-archive</string>
+				<string>org.gnu.gnu-zip-archive</string>
+				<string>org.gnu.gnu-zip-tar-archive</string>
+				<string>public.bzip2-archive</string>
+				<string>public.tar-bzip2-archive</string>
+				<string>org.tukaani.xz-archive</string>
+				<string>org.tukaani.tar-xz-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
+				<string>com.rarlab.rar-archive</string>
+				<string>public.iso-image</string>
+				<string>public.cpio-archive</string>
+				<string>com.apple.xar-archive</string>
+				<string>com.apple.installer-package-archive</string>
+			</array>
+		</dict>
+		<!-- Any file or folder, rank None: accepted when dropped on the Dock icon (to compress it)
+		     without adding Crate to Open With for every file. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>File or Folder</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>None</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.item</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>Crate</string>
 	<key>CFBundleIconFile</key>
@@ -23,7 +68,59 @@
 	<true/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<!-- CFBundleDocumentTypes: added with the app UI. -->
-	<!-- NSServices: added with the app UI. -->
+	<!-- Finder ▸ right-click ▸ Services. Handled by AppDelegate (NSApp.servicesProvider).
+	     NSRequiredContext, even empty, makes a service enabled by default. -->
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Compress with Crate</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>compressItems</string>
+			<key>NSPortName</key>
+			<string>Crate</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.item</string>
+				<string>public.folder</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Extract Here with Crate</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>extractItems</string>
+			<key>NSPortName</key>
+			<string>Crate</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.zip-archive</string>
+				<string>public.tar-archive</string>
+				<string>org.gnu.gnu-tar-archive</string>
+				<string>org.gnu.gnu-zip-archive</string>
+				<string>org.gnu.gnu-zip-tar-archive</string>
+				<string>public.bzip2-archive</string>
+				<string>public.tar-bzip2-archive</string>
+				<string>org.tukaani.xz-archive</string>
+				<string>org.tukaani.tar-xz-archive</string>
+				<string>org.7-zip.7-zip-archive</string>
+				<string>com.rarlab.rar-archive</string>
+				<string>public.iso-image</string>
+				<string>public.cpio-archive</string>
+				<string>com.apple.xar-archive</string>
+				<string>com.apple.installer-package-archive</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
