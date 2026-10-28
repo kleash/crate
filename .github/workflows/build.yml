@@ -1,0 +1,36 @@
+# Tests and builds every push and pull request. A pushed tag vX.Y.Z also publishes the GitHub release
+# Crate-X.Y.Z.zip: Crate.app with install.sh and uninstall.sh, in a folder named Crate.
+name: Build
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./test.sh
+      - run: ./build.sh
+      - name: Package
+        run: |
+          version=$(tr -d '[:space:]' < VERSION)
+          mkdir -p dist/Crate
+          cp -R build/Crate.app install.sh uninstall.sh dist/Crate/
+          (cd dist && ditto -c -k --sequesterRsrc --keepParent Crate "Crate-$version.zip")
+          echo "ZIP=dist/Crate-$version.zip" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Crate
+          path: ${{ env.ZIP }}
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "${GITHUB_REF_NAME#v}" = "$(tr -d '[:space:]' < VERSION)" || { echo "Tag $GITHUB_REF_NAME doesn't match VERSION" >&2; exit 1; }
+          echo "SHA-256: \`$(shasum -a 256 "$ZIP" | cut -d' ' -f1)\`" > notes.md
+          gh release create "$GITHUB_REF_NAME" "$ZIP" --title "Crate $GITHUB_REF_NAME" --generate-notes --notes-file notes.md

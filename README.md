@@ -1,7 +1,44 @@
-# Crate
+<p align="center">
+  <img src="docs/icon.png" width="128" height="128" alt="Crate icon">
+</p>
 
-A native macOS archive utility: browse, preview, extract, create and edit archives. It uses the libarchive
-that ships with macOS, so it has no third-party dependencies.
+<h1 align="center">Crate</h1>
+
+<p align="center">
+  <b>The free, open-source archive utility macOS should have shipped with.</b><br>
+  Browse, Quick Look, extract and create ZIP, 7-Zip, RAR, TAR and more: in a native Mac app of about 3 MB.
+</p>
+
+<p align="center">
+  <a href="https://github.com/kleash/crate/releases/latest"><img src="https://img.shields.io/github/v/release/kleash/crate?label=download&color=2c5dd8" alt="Download"></a>
+  <a href="https://github.com/kleash/crate/actions/workflows/build.yml"><img src="https://github.com/kleash/crate/actions/workflows/build.yml/badge.svg" alt="Build"></a>
+  <img src="https://img.shields.io/badge/macOS-13.1%2B-blue" alt="macOS 13.1+">
+  <img src="https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-universal-blue" alt="Universal">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/kleash/crate?color=green" alt="MIT License"></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshot-browse.png" width="760" alt="Crate browsing an archive">
+</p>
+
+Double-clicking a .zip in Finder dumps it into a folder and leaves you to clean up. Crate opens it in a window
+instead, like a folder: look inside, preview files with Space, drag out only what you need. It's free and has no
+ads, accounts, telemetry or third-party dependencies (it uses the libarchive that ships with macOS).
+
+## Install
+
+**Homebrew**
+
+```sh
+brew install --cask kleash/tap/crate
+```
+
+**Download**: get `Crate-<version>.zip` from the [latest release](https://github.com/kleash/crate/releases/latest),
+unzip it, open Terminal in the unzipped folder and run `./install.sh`.
+
+Don't double-click the downloaded Crate.app first. It isn't notarized by Apple (that costs $99 a year), so
+macOS calls a downloaded copy "damaged" until `install.sh` (or Homebrew) clears its quarantine flag. Every release is
+built from this repository's source by [GitHub Actions](.github/workflows/build.yml).
 
 ## Features
 
@@ -22,43 +59,33 @@ that ships with macOS, so it has no third-party dependencies.
   - Open With ▸ Crate.
   - Right-click ▸ Services ▸ **Compress with Crate** (opens the New Archive window); on archives, .001 volumes
     included, also **Open with Crate** and **Extract Here with Crate** (with progress and Cancel).
-  - Quick Look: press Space on an archive to see the files inside.
+  - Quick Look: press Space on an archive in Finder to see the files inside, without opening anything.
+- **Safe extraction**: nothing in an archive can write outside the folder you extract to (`../` paths are refused;
+  absolute paths, symlinks and hard links stay inside).
 
-## Requirements
+<p align="center">
+  <img src="docs/screenshot-new-archive.png" width="440" alt="The New Archive window">
+  <img src="docs/screenshot-welcome.png" width="440" alt="The Welcome window">
+</p>
 
-- macOS 13.1 or later, on Apple silicon or Intel.
-- Building needs the Command Line Tools with Swift 5.9 or later. Xcode is not needed. Installing the Command Line
-  Tools (`xcode-select --install`) needs an administrator password; on a Mac without them, use a prebuilt Crate.app.
-- Running the tests needs Swift 6 or later.
-
-## Quick start (prebuilt app)
-
-Unzip, then open Terminal in the unzipped folder and run `./install.sh`.
-
-Don't double-click Crate.app first. The app is ad-hoc signed, so macOS calls a downloaded copy "damaged" until
-`install.sh` clears its quarantine flag.
+To make Crate open archives when you double-click them: select a .zip in Finder, File ▸ Get Info, Open with:
+Crate, **Change All…**
 
 ## Build from source
 
+Needs macOS 13.1 or later and the Command Line Tools with Swift 5.9 or later (`xcode-select --install`). Xcode is not
+needed.
+
 ```sh
+git clone https://github.com/kleash/crate.git && cd crate
 ./build.sh      # universal app in build/Crate.app (./build.sh --native builds only this Mac's architecture, faster)
 ./install.sh    # copies it to ~/Applications and registers Open With, the Services and Quick Look
 ```
 
 `./install.sh --dry-run` prints what it would do. `./install.sh path/to/Crate.app` installs a prebuilt app.
-No administrator rights are needed.
+No administrator rights are needed. `./uninstall.sh` removes it again.
 
-## Tests
-
-```sh
-./test.sh
-```
-
-## Uninstall
-
-```sh
-./uninstall.sh
-```
+The tests (`./test.sh`) need Swift 6 or later.
 
 ## Known limitations
 
@@ -71,3 +98,17 @@ No administrator rights are needed.
 - RAR, ISO, CPIO, XAR/PKG, single-file .gz/.bz2/.xz and split archives are read-only.
 - Quick Look doesn't preview split archives: its sandbox lets it read only the selected .001, not the other volumes.
 - A single .bz2 or .xz file doesn't record its uncompressed size, so Crate shows it as Zero KB.
+
+## Contributing
+
+Bug reports and pull requests are welcome. The code is small, about 2,600 lines of Swift:
+
+- `Sources/ArchiveCore`: listing, extracting, writing and splitting archives on top of libarchive (tested).
+- `Sources/Crate`: the AppKit app.
+- `Sources/CrateQuickLook`: the Quick Look extension.
+
+Run `./test.sh` before sending a pull request.
+
+## License
+
+[MIT](LICENSE)
