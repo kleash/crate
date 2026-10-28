@@ -195,6 +195,20 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
         }
     }
 
+    /// ⌘↓ and the context menu: enter a folder, otherwise open the selected files in their default apps.
+    @objc func openInApp(_ sender: Any?) {
+        let entries = selection
+        if entries.count == 1 && entries[0].isDirectory { return show(entries[0].path) }
+        guard entries.contains(where: { !$0.isDirectory }) else { return }
+        preparePreview {
+            for file in self.previewItems {
+                // A temporary copy: edits would be lost when the window closes, so apps should offer to duplicate it.
+                try? FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
+                NSWorkspace.shared.open(file)
+            }
+        }
+    }
+
     @objc private func doubleClicked(_ sender: NSTableView) {
         if sender.clickedRow >= 0 { openSelection(nil) }
     }
@@ -348,6 +362,8 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
         case #selector(addFiles(_:)): return listing.isEditable
         case #selector(deleteEntries(_:)): return listing.isEditable && !selection.isEmpty
         case #selector(quickLook(_:)): return selection.contains { !$0.isDirectory }
+        case #selector(openSelection(_:)): return !selection.isEmpty
+        case #selector(openInApp(_:)): return selection.count == 1 || selection.contains { !$0.isDirectory }
         default: return true
         }
     }
@@ -412,6 +428,14 @@ final class ArchiveWindowController: NSWindowController, NSWindowDelegate, NSToo
         table.delegate = self
         table.target = self
         table.doubleAction = #selector(doubleClicked(_:))
+        table.menu = NSMenu()
+        for (title, action) in [("Open", #selector(openSelection(_:))), ("Open in Default App", #selector(openInApp(_:))),
+                                ("Quick Look", #selector(quickLook(_:))), ("", nil), ("Extract…", #selector(extract(_:))),
+                                ("", nil), ("Add Files…", #selector(addFiles(_:))), ("Delete", #selector(deleteEntries(_:)))] {
+            let item = action.map { NSMenuItem(title: title, action: $0, keyEquivalent: "") } ?? .separator()
+            item.target = self
+            table.menu!.addItem(item)
+        }
         table.setDraggingSourceOperationMask(.copy, forLocal: false)
         table.registerForDraggedTypes([.fileURL])
 
@@ -709,6 +733,18 @@ private extension NSToolbarItem.Identifier {
 /// The entry table. Space toggles Quick Look, Return opens, Delete deletes and ⌘[ goes back; the actions go to the
 /// table's delegate, the ArchiveWindowController (also while the Quick Look panel forwards its keys here).
 final class EntryTableView: NSTableView {
+    /// Right-click acts on the clicked row (selecting it unless it is already selected), or on everything when it
+    /// misses the rows, as in Finder.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let row = row(at: convert(event.locationInWindow, from: nil))
+        if row < 0 {
+            deselectAll(nil)
+        } else if !selectedRowIndexes.contains(row) {
+            selectRowIndexes([row], byExtendingSelection: false)
+        }
+        return super.menu(for: event)
+    }
+
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
         var action: Selector?

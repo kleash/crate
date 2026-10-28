@@ -81,14 +81,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !others.isEmpty { showNewArchive(others) }
     }
 
-    /// A file whose type is an archive (disk images other than ISO excluded: libarchive can't read them), or the
-    /// first volume of a split archive ("name.zip.001"), whatever type another app may have given .001 files.
+    /// A file whose type is an archive (disk images other than ISO excluded: libarchive can't read them) or one of
+    /// the types Crate opens (.docx, .apk, …), or the first volume of a split archive ("name.zip.001"), whatever
+    /// type another app may have given .001 files.
     private func isArchive(_ url: URL) -> Bool {
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentTypeKey])
         guard values?.isDirectory == false, let type = values?.contentType else { return false }
         if url.pathExtension == "001" { return true }
         return type.conforms(to: .archive) && (!type.conforms(to: .diskImage) || type.identifier == "public.iso-image")
+            || Self.archiveTypes.contains { type.conforms(to: $0) }
     }
+
+    /// The types Info.plist declares as archives (public.archive would include disk images, which can't be read).
+    private static let archiveTypes: [UTType] = ((Bundle.main.infoDictionary?["CFBundleDocumentTypes"] as? [[String: Any]])?
+        .first { $0["CFBundleTypeName"] as? String == "Archive" }?["LSItemContentTypes"] as? [String] ?? []).compactMap { UTType($0) }
 
     private func openArchive(_ url: URL) {
         let key = url.standardizedFileURL.resolvingSymlinksInPath().path
@@ -114,10 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func showOpenPanel(_ sender: Any?) {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
-        // The types Info.plist declares as archives (public.archive would include disk images, which can't be read).
-        let types = (Bundle.main.infoDictionary?["CFBundleDocumentTypes"] as? [[String: Any]])?
-            .first { $0["CFBundleTypeName"] as? String == "Archive" }?["LSItemContentTypes"] as? [String] ?? []
-        panel.allowedContentTypes = types.compactMap { UTType($0) }
+        panel.allowedContentTypes = Self.archiveTypes
         guard panel.runModal() == .OK else { return }
         panel.urls.forEach(openArchive)
     }
@@ -282,6 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let helpMenu = menu("Help", [item("Crate on GitHub", #selector(openGitHub(_:))), reportIssue])
         NSApp.helpMenu = helpMenu.submenu
         let upArrow = String(Character(UnicodeScalar(NSUpArrowFunctionKey)!))
+        let downArrow = String(Character(UnicodeScalar(NSDownArrowFunctionKey)!))
         let main = NSMenu()
         [
             menu("Crate", [
@@ -320,6 +324,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 item("Delete", #selector(ArchiveWindowController.deleteEntries(_:)), "\u{8}"),
                 .separator(),
                 item("Quick Look", #selector(ArchiveWindowController.quickLook(_:)), "y"),
+                item("Open in Default App", #selector(ArchiveWindowController.openInApp(_:)), downArrow),
                 item("Enclosing Folder", #selector(ArchiveWindowController.goUp(_:)), upArrow),
             ]),
             windowMenu,

@@ -44,8 +44,12 @@ built from this repository's source by [GitHub Actions](.github/workflows/build.
 
 - **Open** ZIP, 7-Zip, RAR/RAR5, TAR, TAR.GZ/.BZ2/.XZ, single-file .gz/.bz2/.xz, ISO, CPIO and XAR/PKG, and split
   archives (name.zip.001, name.zip.002, …: open the .001).
+- **Look inside files that are archives in disguise**: Office (.docx, .xlsx, .pptx), OpenDocument, Pages, Keynote
+  and Numbers files, EPUB books, iOS (.ipa) and Android (.apk, .aab, .aar) apps, Java .jar, Python wheels, NuGet,
+  VS Code (.vsix) and browser extensions, and comic books (.cbz, .cbr, .cb7).
 - **Browse** one window per archive: folders, path bar, sortable columns, search across the whole archive,
-  Quick Look preview with Space.
+  Quick Look preview with Space, and a right-click menu (Open, Open in Default App, Quick Look, Extract…, Delete).
+  ⌘↓ opens a file in its own app, from a read-only temporary copy.
 - **Extract** the selection or everything, or use **Extract Here**, which adds no extra folder when the archive
   has a single top-level item. You can also drag items out to Finder.
 - **Create** ZIP, 7-Zip, TAR, TAR.GZ, TAR.XZ or TAR.BZ2 archives: drop files on Crate, choose File ▸ New Archive…,
@@ -96,6 +100,8 @@ The tests (`./test.sh`) need Swift 6 or later.
   with AES-256.
 - There is no per-file packed size (libarchive doesn't report one). The status bar shows the archive's size.
 - RAR, ISO, CPIO, XAR/PKG, single-file .gz/.bz2/.xz and split archives are read-only.
+- Disk images (.dmg) aren't archives that libarchive can read; double-click them to mount them in Finder instead.
+  App bundles (.app) are folders: right-click ▸ Show Package Contents in Finder.
 - Quick Look doesn't preview split archives: its sandbox lets it read only the selected .001, not the other volumes.
 - A single .bz2 or .xz file doesn't record its uncompressed size, so Crate shows it as Zero KB.
 

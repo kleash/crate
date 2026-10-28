@@ -48,6 +48,7 @@
 				<string>public.z-archive</string>
 				<string>com.apple.bom-compressed-cpio</string>
 				<string>public.archive</string>
+				<string>com.kleash.crate.package-archive</string>
 			</array>
 			<key>QLSupportsSearchableItems</key>
 			<false/>

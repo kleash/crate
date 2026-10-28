@@ -7,7 +7,8 @@
 	<string>en</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
-		<!-- Archives: Finder's Open With lists Crate, and it can be made the default app. -->
+		<!-- Archives, and documents and packages that are ZIP files inside (.docx, .epub, .ipa, …): Finder's Open With
+		     lists Crate, and it can be made the default app. -->
 		<dict>
 			<key>CFBundleTypeName</key>
 			<string>Archive</string>
@@ -35,6 +36,15 @@
 				<string>public.z-archive</string>
 				<string>com.apple.bom-compressed-cpio</string>
 				<string>com.kleash.crate.split-archive-part</string>
+				<string>org.openxmlformats.openxml</string>
+				<string>org.oasis-open.opendocument</string>
+				<string>org.idpf.epub-container</string>
+				<string>com.apple.iwork.pages.sffpages</string>
+				<string>com.apple.iwork.keynote.sffkey</string>
+				<string>com.apple.iwork.numbers.sffnumbers</string>
+				<string>com.apple.itunes.ipa</string>
+				<string>org.chromium.extension</string>
+				<string>com.kleash.crate.package-archive</string>
 			</array>
 		</dict>
 		<!-- Any file or folder, rank None: accepted when dropped on the Dock icon (to compress it)
@@ -127,6 +137,15 @@
 				<string>public.z-archive</string>
 				<string>com.apple.bom-compressed-cpio</string>
 				<string>com.kleash.crate.split-archive-part</string>
+				<string>org.openxmlformats.openxml</string>
+				<string>org.oasis-open.opendocument</string>
+				<string>org.idpf.epub-container</string>
+				<string>com.apple.iwork.pages.sffpages</string>
+				<string>com.apple.iwork.keynote.sffkey</string>
+				<string>com.apple.iwork.numbers.sffnumbers</string>
+				<string>com.apple.itunes.ipa</string>
+				<string>org.chromium.extension</string>
+				<string>com.kleash.crate.package-archive</string>
 			</array>
 		</dict>
 		<dict>
@@ -161,6 +180,15 @@
 				<string>public.z-archive</string>
 				<string>com.apple.bom-compressed-cpio</string>
 				<string>com.kleash.crate.split-archive-part</string>
+				<string>org.openxmlformats.openxml</string>
+				<string>org.oasis-open.opendocument</string>
+				<string>org.idpf.epub-container</string>
+				<string>com.apple.iwork.pages.sffpages</string>
+				<string>com.apple.iwork.keynote.sffkey</string>
+				<string>com.apple.iwork.numbers.sffnumbers</string>
+				<string>com.apple.itunes.ipa</string>
+				<string>org.chromium.extension</string>
+				<string>com.kleash.crate.package-archive</string>
 			</array>
 		</dict>
 	</array>
@@ -184,6 +212,34 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>001</string>
+				</array>
+			</dict>
+		</dict>
+		<!-- ZIP- and RAR-based packages that macOS has no type for (Android apps, Python wheels, comic books, …), so
+		     Crate can offer to open them. Not public.archive, so nothing else starts treating them as archives. -->
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.kleash.crate.package-archive</string>
+			<key>UTTypeDescription</key>
+			<string>Package archive</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>apk</string>
+					<string>aab</string>
+					<string>aar</string>
+					<string>xpi</string>
+					<string>whl</string>
+					<string>nupkg</string>
+					<string>vsix</string>
+					<string>cbz</string>
+					<string>cbr</string>
+					<string>cb7</string>
 				</array>
 			</dict>
 		</dict>
