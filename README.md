@@ -30,6 +30,7 @@ ads, accounts, telemetry or third-party dependencies (it uses the libarchive tha
 **Homebrew**
 
 ```sh
+brew trust --cask kleash/tap/crate    # Homebrew 7 asks you to trust casks from outside its own repository
 brew install --cask kleash/tap/crate
 ```
 
