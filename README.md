@@ -35,11 +35,7 @@ brew install --cask kleash/tap/crate
 ```
 
 **Download**: get `Crate-<version>.zip` from the [latest release](https://github.com/kleash/crate/releases/latest),
-unzip it, open Terminal in the unzipped folder and run `./install.sh`.
-
-Don't double-click the downloaded Crate.app first. It isn't notarized by Apple (that costs $99 a year), so
-macOS calls a downloaded copy "damaged" until `install.sh` (or Homebrew) clears its quarantine flag. Every release is
-built from this repository's source by [GitHub Actions](.github/workflows/build.yml).
+unzip it and move Crate.app to Applications. It's signed and notarized by Apple, so it opens like any other app.
 
 ## Features
 
@@ -87,8 +83,11 @@ git clone https://github.com/kleash/crate.git && cd crate
 ./install.sh    # copies it to ~/Applications and registers Open With, the Services and Quick Look
 ```
 
-`./install.sh --dry-run` prints what it would do. `./install.sh path/to/Crate.app` installs a prebuilt app.
-No administrator rights are needed. `./uninstall.sh` removes it again.
+`./install.sh --dry-run` prints what it would do. No administrator rights are needed. `./uninstall.sh` removes it
+again. A build of your own is signed ad hoc, which is enough on the Mac that built it.
+
+Releases: bump `VERSION`, commit, then `scripts/release.sh` signs with a Developer ID, notarizes and publishes the
+GitHub release; the build workflow then updates the Homebrew cask.
 
 The tests (`./test.sh`) need Swift 6 or later.
 

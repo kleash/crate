@@ -1,36 +1,41 @@
-# Tests and builds every push and pull request. A pushed tag vX.Y.Z also publishes the GitHub release
-# Crate-X.Y.Z.zip: Crate.app with install.sh and uninstall.sh, in a folder named Crate.
+# Tests and builds every push and pull request. Publishing a release (scripts/release.sh) updates the Homebrew cask
+# in kleash/homebrew-tap to it, pushing with the deploy key in the TAP_DEPLOY_KEY secret.
 name: Build
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
+  release:
+    types: [published]
 permissions:
-  contents: write
+  contents: read
 jobs:
   build:
+    if: github.event_name != 'release'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - run: ./test.sh
       - run: ./build.sh
-      - name: Package
-        run: |
-          version=$(tr -d '[:space:]' < VERSION)
-          mkdir -p dist/Crate
-          cp -R build/Crate.app install.sh uninstall.sh dist/Crate/
-          (cd dist && ditto -c -k --sequesterRsrc --keepParent Crate "Crate-$version.zip")
-          echo "ZIP=dist/Crate-$version.zip" >> "$GITHUB_ENV"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Crate
-          path: ${{ env.ZIP }}
-      - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+  cask:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Casks/crate.rb
         env:
           GH_TOKEN: ${{ github.token }}
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          test "${GITHUB_REF_NAME#v}" = "$(tr -d '[:space:]' < VERSION)" || { echo "Tag $GITHUB_REF_NAME doesn't match VERSION" >&2; exit 1; }
-          echo "SHA-256: \`$(shasum -a 256 "$ZIP" | cut -d' ' -f1)\`" > notes.md
-          gh release create "$GITHUB_REF_NAME" "$ZIP" --title "Crate $GITHUB_REF_NAME" --generate-notes --notes-file notes.md
+          version=${TAG#v}
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "Crate-$version.zip"
+          sha=$(sha256sum "Crate-$version.zip" | cut -d' ' -f1)
+          install -m 600 /dev/null ~/tap-key && echo "$TAP_DEPLOY_KEY" > ~/tap-key
+          export GIT_SSH_COMMAND="ssh -i ~/tap-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone git@github.com:kleash/homebrew-tap.git tap
+          cd tap
+          sed -i -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" Casks/crate.rb
+          git diff --exit-code --quiet && { echo "The cask is already at $version."; exit 0; }
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -am "crate $version"
+          git push
