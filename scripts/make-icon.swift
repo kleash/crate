@@ -33,6 +33,16 @@ func draw(_ cg: CGContext) {
     cg.clip()
     let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [color(92, 154, 255), color(40, 84, 208)] as CFArray, locations: [0, 1])!
     cg.drawLinearGradient(gradient, start: CGPoint(x: 512, y: 924), end: CGPoint(x: 512, y: 100), options: [])
+    // A soft glow behind the box, so it reads at a glance in the Dock.
+    let glow = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [color(255, 255, 255, 0.28), color(255, 255, 255, 0)] as CFArray, locations: [0, 1])!
+    cg.drawRadialGradient(glow, startCenter: CGPoint(x: 512, y: 600), startRadius: 0, endCenter: CGPoint(x: 512, y: 600), endRadius: 420, options: [])
+    cg.restoreGState()
+    // A thin light rim along the top edge of the rounded square.
+    cg.saveGState()
+    cg.addPath(CGPath(roundedRect: CGRect(x: 102, y: 102, width: 820, height: 820), cornerWidth: 183, cornerHeight: 183, transform: nil))
+    cg.setStrokeColor(color(255, 255, 255, 0.18))
+    cg.setLineWidth(4)
+    cg.strokePath()
     cg.restoreGState()
 
     // The box: an isometric cube. Top face corners: left, back, right, front; side faces hang `height` below.
@@ -59,6 +69,15 @@ func draw(_ cg: CGContext) {
     }
     cg.endTransparencyLayer()
     cg.restoreGState()
+    // Shade the sides darker toward the bottom, as if lit from above.
+    let shade = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [color(0, 0, 0, 0), color(60, 30, 0, 0.22)] as CFArray, locations: [0, 1])!
+    for (path, _) in faces.prefix(2) {
+        cg.saveGState()
+        cg.addPath(path)
+        cg.clip()
+        cg.drawLinearGradient(shade, start: CGPoint(x: 512, y: front.y), end: CGPoint(x: 512, y: down(front).y), options: [])
+        cg.restoreGState()
+    }
 
     // Packing tape along the lid seam, running over the front-right edge and halfway down that side.
     let (a, b): (CGFloat, CGFloat) = (0.41, 0.59)
@@ -68,6 +87,11 @@ func draw(_ cg: CGContext) {
     cg.addPath(polygon([top(a, 1), top(b, 1), down(top(b, 1), height * 0.55), down(top(a, 1), height * 0.55)]))
     cg.setFillColor(color(170, 118, 58))
     cg.fillPath()
+    // The seam between the two lid flaps, under the tape's centre line.
+    cg.setStrokeColor(color(150, 100, 45, 0.55))
+    cg.setLineWidth(3)
+    cg.addLines(between: [top(0.5, 0), top(0.5, 1)])
+    cg.strokePath()
 
     // Crisp edges: a light line where the lit top meets the sides.
     cg.setStrokeColor(color(255, 244, 222, 0.9))
