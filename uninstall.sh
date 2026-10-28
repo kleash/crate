@@ -28,6 +28,6 @@ run qlmanage -r
 
 cat <<'EOF'
 Crate is uninstalled.
-macOS keeps the Quick Look extension's sandbox folder at ~/Library/Containers/com.sa.crate.quicklook.
+macOS keeps the Quick Look extension's sandbox folder at ~/Library/Containers/com.kleash.crate.quicklook.
 Delete it in Finder if you like (Go ▸ Go to Folder…); Terminal is usually not allowed to.
 EOF

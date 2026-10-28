@@ -12,7 +12,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController, NSO
     /// At most this many entries go into the tree; a footer counts the rest.
     private static let cap = 10_000
 
-    private let log = Logger(subsystem: "com.sa.crate", category: "quicklook")
+    private let log = Logger(subsystem: "com.kleash.crate", category: "quicklook")
     private let icon = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
     private let summaryLabel = NSTextField(labelWithString: "")

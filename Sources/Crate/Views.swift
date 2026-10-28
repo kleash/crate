@@ -12,8 +12,9 @@ struct WelcomeView: View {
     var body: some View {
         VStack(spacing: 16) {
             VStack(spacing: 10) {
-                Image(systemName: "shippingbox")
-                    .font(.system(size: 44, weight: .light))
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 72, height: 72)
                 Text("Drop files to compress • Drop an archive to open")
                     .multilineTextAlignment(.center)
             }

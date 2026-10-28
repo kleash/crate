@@ -10,7 +10,7 @@
 	<key>CFBundleExecutable</key>
 	<string>CrateQuickLook</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.sa.crate.quicklook</string>
+	<string>com.kleash.crate.quicklook</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -25,7 +25,7 @@
 		<dict>
 			<key>QLIsDataBasedPreview</key>
 			<false/>
-			<!-- Not com.sa.crate.split-archive-part (name.zip.001): the sandbox lets the extension read only the
+			<!-- Not com.kleash.crate.split-archive-part (name.zip.001): the sandbox lets the extension read only the
 			     selected volume of a split archive. -->
 			<key>QLSupportedContentTypes</key>
 			<array>

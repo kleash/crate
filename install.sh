@@ -58,7 +58,7 @@ run "$lsregister" -f -R "$dest"
 if [ "$src" != "$dest" ]; then run "$lsregister" -u "$src" 2>/dev/null || true; fi
 # Quick Look extension: register it and make sure it is enabled.
 run pluginkit -a "$appex"
-run pluginkit -e use -i com.sa.crate.quicklook
+run pluginkit -e use -i com.kleash.crate.quicklook
 run /System/Library/CoreServices/pbs -update
 run qlmanage -r
 run qlmanage -r cache

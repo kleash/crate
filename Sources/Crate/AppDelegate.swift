@@ -4,9 +4,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 import os
 
-let log = Logger(subsystem: "com.sa.crate", category: "app")
+let log = Logger(subsystem: "com.kleash.crate", category: "app")
 /// "Extract Here with Crate" runs its extractions on this queue, one at a time (see `AppDelegate.extractItems`).
-private let extractHereTurns = DispatchQueue(label: "com.sa.crate.extract-here")
+private let extractHereTurns = DispatchQueue(label: "com.kleash.crate.extract-here")
 
 /// App lifecycle, the Welcome window, New Archive, the menu bar and the Finder services.
 /// Archive windows are plain AppKit windows (ArchiveWindowController), one per archive.
@@ -47,6 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         log.log("reopen without windows: welcome")
         showWelcome()
         return true
+    }
+
+    /// Help menu: the repository page, or the page the item's `representedObject` path names.
+    @objc func openGitHub(_ sender: NSMenuItem) {
+        NSWorkspace.shared.open(URL(string: "https://github.com/kleash/crate" + (sender.representedObject as? String ?? ""))!)
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
@@ -272,7 +277,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             item("Bring All to Front", #selector(NSApplication.arrangeInFront(_:))),
         ])
         NSApp.windowsMenu = windowMenu.submenu
-        let helpMenu = menu("Help", [])
+        let reportIssue = item("Report an Issue…", #selector(openGitHub(_:)))
+        reportIssue.representedObject = "/issues/new"  // appended to the repository URL
+        let helpMenu = menu("Help", [item("Crate on GitHub", #selector(openGitHub(_:))), reportIssue])
         NSApp.helpMenu = helpMenu.submenu
         let upArrow = String(Character(UnicodeScalar(NSUpArrowFunctionKey)!))
         let main = NSMenu()
