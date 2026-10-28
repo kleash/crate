@@ -1,3 +1,9 @@
 .build/
 build/
 dist/
+# Signing and notarization credentials never belong in the repository.
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+.env

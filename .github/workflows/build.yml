@@ -14,7 +14,9 @@ jobs:
     if: github.event_name != 'release'
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - run: ./test.sh
       - run: ./build.sh
   cask:
@@ -31,7 +33,9 @@ jobs:
           gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "Crate-$version.zip"
           sha=$(sha256sum "Crate-$version.zip" | cut -d' ' -f1)
           install -m 600 /dev/null ~/tap-key && echo "$TAP_DEPLOY_KEY" > ~/tap-key
-          export GIT_SSH_COMMAND="ssh -i ~/tap-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          # GitHub's published host key (api.github.com/meta), so the deploy key only ever talks to GitHub.
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > ~/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/tap-key -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/known_hosts -o StrictHostKeyChecking=yes"
           git clone git@github.com:kleash/homebrew-tap.git tap
           cd tap
           sed -i -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" Casks/crate.rb
